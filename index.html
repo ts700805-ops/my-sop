@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>SOP 雲端同步系統</title>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // *** 請在此處替換成您在 Firebase 後台複製的資訊 ***
+        const firebaseConfig = {
+  apiKey: "AIzaSyALcGIGqqTDg47FjSg9cy1Ld19C7WgA29Y",
+  authDomain: "sop-ta-liang.firebaseapp.com",
+  projectId: "sop-ta-liang",
+  storageBucket: "sop-ta-liang.firebasestorage.app",
+  messagingSenderId: "776894564311",
+  appId: "1:776894564311:web:ee70e633865b5f946e2d92",
+  measurementId: "G-1EHKPL1K6R"
+};
+        
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const sopRef = doc(db, "data", "allSOPs");
+
+        // 全域變數
+        window.allSOPs = {};
+        window.currentSOPKey = "";
+        window.userRole = "";
+
+        // --- 雲端同步邏輯 ---
+        
+        // 1. 監聽雲端資料更新 (當別人在別台電腦改，這台會自動變)
+        onSnapshot(sopRef, (docSnap) => {
+            if (docSnap.exists()) {
+                window.allSOPs = docSnap.data().content || {};
+                if (document.getElementById('mainMenu').style.display === 'block') {
+                    renderSOPButtons();
+                }
+            }
+        });
+
+        // 2. 儲存到雲端
+        window.saveToCloud = async function() {
+            try {
+                await setDoc(sopRef, { content: window.allSOPs });
+                console.log("雲端同步成功");
+            } catch (e) {
+                alert("雲端儲存失敗，請檢查權限或網路");
+            }
+        };
+
+        // --- 原有邏輯修正為雲端版 ---
+        window.handleLogin = function() {
+            const pass = document.getElementById('passInput').value;
+            if (pass === "0000") { window.userRole = "admin"; showMainMenu(); }
+            else if (pass === "1234") { window.userRole = "viewer"; showMainMenu(); }
+            else { alert("密碼錯誤"); }
+        };
+
+        window.addStep = async function() {
+            const txt = document.getElementById('stepInput').value.trim();
+            const note = document.getElementById('noteInput').value.trim();
+            const file = document.getElementById('imageInput').files[0];
+            if (!txt) return alert("請輸入說明");
+
+            let imgData = "";
+            if (file) imgData = await compressImage(file);
+
+            window.allSOPs[window.currentSOPKey].push({ text: txt, note: note, img: imgData });
+            await window.saveToCloud(); // 存到雲端
+            document.getElementById('stepInput').value = "";
+            document.getElementById('noteInput').value = "";
+            document.getElementById('imageInput').value = "";
+            renderEditSteps();
+        };
+
+        // ... 圖片壓縮與其他功能與之前相同 ...
+    </script>
+    <style>
+        /* 保持原本優化後的樣式，左文右圖，壓縮照片按鈕樣式標籤 */
+        body { font-family: "Microsoft JhengHei", sans-serif; background: #f0f2f5; padding: 20px; }
+        .container { max-width: 1200px; margin: auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); }
+        .btn-style-label { background: #673ab7; color: white; padding: 8px 15px; border-radius: 8px; font-size: 0.9em; display: inline-block; cursor: default; }
+        .teaching-layout { display: flex; gap: 25px; margin-top: 25px; min-height: 450px; }
+        .teaching-text-side { flex: 1; background: #fff; border: 3px solid #1a73e8; border-radius: 15px; padding: 40px; display: flex; flex-direction: column; justify-content: center; order: 1; }
+        .teaching-img-side { flex: 1; display: flex; align-items: center; justify-content: center; background: #222; border-radius: 15px; overflow: hidden; order: 2; }
+        .teaching-img-side img { max-width: 100%; max-height: 100%; object-fit: contain; }
+        .cloud-status { text-align: right; font-size: 0.8em; color: #34a853; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="cloud-status">● 雲端同步已開啟</div>
+        <h1>SOP 雲端管理系統</h1>
+        
+        <div id="loginArea" style="text-align: center; padding: 50px 0;">
+            <h2>系統驗證</h2>
+            <input type="password" id="passInput" style="padding:12px; width:200px;" placeholder="輸入密碼">
+            <button onclick="handleLogin()" style="padding:10px 20px; background:#1a73e8; color:white; border:none; border-radius:8px;">進入系統</button>
+        </div>
+
+        <div id="mainMenu" style="display:none;">
+            <div id="adminTools" style="display:none; margin-bottom: 30px;">
+                <button onclick="createNewSOP()" style="width:100%; background:#34a853; color:white; padding:15px; border:none; border-radius:8px; font-weight:bold;">＋ 建立全新流程 (SOP)</button>
+            </div>
+            <div id="sopButtons" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px,1fr)); gap:20px;"></div>
+        </div>
+
+        </div>
+</body>
+</html>
