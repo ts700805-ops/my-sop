@@ -37,15 +37,19 @@
             }
         });
 
-        window.saveToCloud = async function() {
-            try {
-                await setDoc(sopRef, { content: window.allSOPs });
-                console.log("雲端同步成功");
-            } catch (e) {
-                console.error(e);
-                alert("雲端儲存失敗，請檢查權限或網路");
-            }
-        };
+        // 修改 saveToCloud 確保它會回傳 Promise
+window.saveToCloud = async function() {
+    try {
+        // 這裡必須使用 await，確保 Firebase 完成寫入
+        await setDoc(sopRef, { content: window.allSOPs });
+        console.log("雲端同步成功");
+        return true; // 回傳成功標記
+    } catch (e) {
+        console.error("儲存失敗:", e);
+        alert("雲端儲存失敗，請檢查網路或 Firebase 權限");
+        return false;
+    }
+};
 
         // --- 核心功能函數 ---
         window.handleLogin = function() {
@@ -269,3 +273,4 @@
     </div>
 </body>
 </html>
+
