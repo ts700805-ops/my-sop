@@ -23,9 +23,8 @@
         button { cursor: pointer; transition: 0.2s; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; }
         button:hover { opacity: 0.8; }
         button:disabled { background: #ccc !important; cursor: not-allowed; }
-        /* 彈窗樣式 */
-        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }
-        .modal-content { background: white; margin: 10% auto; padding: 20px; border-radius: 12px; width: 90%; max-width: 500px; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); }
+        .modal-content { background: white; margin: 5% auto; padding: 25px; border-radius: 12px; width: 90%; max-width: 500px; }
     </style>
 </head>
 <body>
@@ -36,12 +35,12 @@
         <div id="loginArea" style="text-align: center; padding: 40px 0;">
             <p style="font-size: 1.2em; font-weight: bold;">請輸入通關密碼</p>
             <input type="password" id="passInput" placeholder="請輸入密碼">
-            <button onclick="window.handleLogin()" style="background:#1a73e8; color:white;">登入系統</button>
+            <button id="loginBtn" style="background:#1a73e8; color:white;">登入系統</button>
         </div>
 
         <div id="mainMenu" style="display:none;">
             <div id="adminTools" style="display:none; margin-bottom: 20px;">
-                <button onclick="window.createNewSOP()" style="width:100%; background:#34a853; color:white;">＋ 建立全新 SOP 流程</button>
+                <button id="createSopBtn" style="width:100%; background:#34a853; color:white;">＋ 建立全新 SOP 流程</button>
             </div>
             <div id="sopButtons" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap:15px;"></div>
         </div>
@@ -53,11 +52,11 @@
                 <div style="display:flex; gap:10px; align-items:center; flex-wrap: wrap; margin-top:10px;">
                     <input type="text" id="noteInput" placeholder="補充備註 (選填)" style="flex:2;">
                     <input type="file" id="imageInput" accept="image/*" style="flex:1;">
-                    <button id="addStepBtn" onclick="window.addStep()" style="background:#34a853; color:white;">新增步驟</button>
+                    <button id="addStepBtn" style="background:#34a853; color:white;">新增步驟</button>
                 </div>
             </div>
             <ul id="stepList" style="list-style:none; padding:0;"></ul>
-            <button id="saveExitBtn" onclick="window.saveAndExit()" style="width:100%; padding:15px; background:#1a73e8; color:white; margin-top:15px;">✔ 儲存所有更動並返回</button>
+            <button id="saveExitBtn" style="width:100%; padding:15px; background:#1a73e8; color:white; margin-top:15px;">✔ 儲存所有更動並返回</button>
         </div>
 
         <div id="editModal" class="modal">
@@ -69,12 +68,12 @@
                     <p>目前圖片預覽：</p>
                     <div id="modalImgPreview" style="margin-bottom: 10px;"></div>
                     <label style="background: #6c757d; color: white; padding: 8px 15px; border-radius: 5px; cursor: pointer; display: inline-block;">
-                        更換照片 <input type="file" id="modalFile" accept="image/*" style="display:none;" onchange="window.previewNewImg(this)">
+                        更換照片 <input type="file" id="modalFile" accept="image/*" style="display:none;">
                     </label>
                 </div>
                 <div style="display: flex; gap: 10px; margin-top: 20px;">
-                    <button onclick="window.confirmEdit()" style="background: #34a853; color: white; flex: 1;">確認修改</button>
-                    <button onclick="window.closeModal()" style="background: #eee; color: black; flex: 1;">取消</button>
+                    <button id="modalConfirmBtn" style="background: #34a853; color: white; flex: 1;">確認修改</button>
+                    <button id="modalCancelBtn" style="background: #eee; color: black; flex: 1;">取消</button>
                 </div>
             </div>
         </div>
@@ -89,8 +88,8 @@
                 </div>
                 <div class="teaching-img-side" id="viewImg"></div>
             </div>
-            <button onclick="window.nextStep()" style="width:100%; padding:20px; font-size:1.4em; background:#34a853; color:white; margin-top:20px; font-weight:bold;">完成，下一步 ▶</button>
-            <button onclick="window.showMainMenu()" style="width:100%; margin-top:10px; padding:10px; background:#6c757d; color:white;">返回目錄</button>
+            <button id="nextStepBtn" style="width:100%; padding:20px; font-size:1.4em; background:#34a853; color:white; margin-top:20px; font-weight:bold;">完成，下一步 ▶</button>
+            <button id="exitTeachBtn" style="width:100%; margin-top:10px; padding:10px; background:#6c757d; color:white;">返回目錄</button>
         </div>
     </div>
 
@@ -111,24 +110,190 @@
         const db = getFirestore(app);
         const sopRef = doc(db, "data", "allSOPs");
 
-        window.allSOPs = {};
-        window.userRole = "";
-        window.currentEditIdx = -1;
-        window.tempEditImg = "";
+        let allSOPs = {};
+        let userRole = "";
+        let currentSOPKey = "";
+        let currentEditIdx = -1;
+        let tempEditImg = "";
+        let curIdx = 0;
 
-        // 監聽雲端資料
+        // 監聽
         onSnapshot(sopRef, (docSnap) => {
             document.getElementById('syncText').innerText = "連線正常";
-            window.allSOPs = docSnap.exists() ? (docSnap.data().content || {}) : {};
-            if (document.getElementById('mainMenu').style.display === 'block') {
-                window.renderSOPButtons();
-            }
-        }, (error) => {
-            document.getElementById('syncText').innerText = "連線失敗";
-            console.error(error);
+            allSOPs = docSnap.exists() ? (docSnap.data().content || {}) : {};
+            if (document.getElementById('mainMenu').style.display === 'block') renderSOPButtons();
         });
 
-        // 登入邏輯
-        window.handleLogin = function() {
+        // 登入
+        document.getElementById('loginBtn').onclick = function() {
             const p = document.getElementById('passInput').value;
-            if (p
+            if (p === "000000") { userRole = "admin"; showMainMenu(); }
+            else if (p === "1234") { userRole = "viewer"; showMainMenu(); }
+            else alert("密碼錯誤");
+        };
+
+        function showMainMenu() {
+            document.getElementById('loginArea').style.display = 'none';
+            document.getElementById('editArea').style.display = 'none';
+            document.getElementById('teachingMode').style.display = 'none';
+            document.getElementById('mainMenu').style.display = 'block';
+            document.getElementById('adminTools').style.display = (userRole === "admin" ? 'block' : 'none');
+            renderSOPButtons();
+        }
+
+        function renderSOPButtons() {
+            const container = document.getElementById('sopButtons');
+            container.innerHTML = "";
+            Object.keys(allSOPs).forEach(t => {
+                const d = document.createElement('div');
+                d.className = "sop-card";
+                d.innerHTML = `<strong>${t}</strong><br><br>
+                    <button class="teach-btn" data-id="${t}" style="width:100%; background:#34a853; color:white;">▶ 開始學習</button>
+                    ${userRole==='admin'? `<button class="edit-sop-btn" data-id="${t}" style="margin-top:5px; width:100%; background:#fbbc05;">編輯</button>` : ''}`;
+                container.appendChild(d);
+            });
+
+            document.querySelectorAll('.teach-btn').forEach(b => b.onclick = () => startTeaching(b.dataset.id));
+            document.querySelectorAll('.edit-sop-btn').forEach(b => b.onclick = () => editExistingSOP(b.dataset.id));
+        }
+
+        async function processImage(file) {
+            return new Promise(r => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const i = new Image();
+                    i.src = e.target.result;
+                    i.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let w = i.width, h = i.height;
+                        if (w > 800) { h *= 800/w; w = 800; }
+                        canvas.width = w; canvas.height = h;
+                        canvas.getContext('2d').drawImage(i, 0, 0, w, h);
+                        r(canvas.toDataURL('image/jpeg', 0.7));
+                    };
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        document.getElementById('createSopBtn').onclick = function() {
+            const t = prompt("流程名稱？");
+            if (t && !allSOPs[t]) { allSOPs[t] = []; editExistingSOP(t); }
+        };
+
+        function editExistingSOP(t) {
+            currentSOPKey = t;
+            document.getElementById('mainMenu').style.display = 'none';
+            document.getElementById('editArea').style.display = 'block';
+            document.getElementById('currentEditingTitle').innerText = t;
+            renderEditSteps();
+        }
+
+        document.getElementById('addStepBtn').onclick = async function() {
+            const txt = document.getElementById('stepInput').value.trim();
+            const note = document.getElementById('noteInput').value.trim();
+            const file = document.getElementById('imageInput').files[0];
+            if (!txt) return alert("請輸入說明");
+            this.innerText = "處理中..."; this.disabled = true;
+            let img = file ? await processImage(file) : "";
+            allSOPs[currentSOPKey].push({ text: txt, note: note, img: img });
+            document.getElementById('stepInput').value = "";
+            document.getElementById('noteInput').value = "";
+            document.getElementById('imageInput').value = "";
+            this.innerText = "新增步驟"; this.disabled = false;
+            renderEditSteps();
+        };
+
+        function renderEditSteps() {
+            const l = document.getElementById('stepList');
+            l.innerHTML = "";
+            allSOPs[currentSOPKey].forEach((s, i) => {
+                const li = document.createElement('li');
+                li.className = "step-item";
+                li.innerHTML = `
+                    <div class="drag-handle">☰</div> 
+                    <div style="flex:1;"><b>${s.text}</b><br><small>${s.note || ""}</small></div>
+                    ${s.img ? `<img src="${s.img}" style="width:50px; height:40px; margin-right:10px; object-fit:cover;">` : ''}
+                    <button class="mod-btn" data-idx="${i}" style="background:#fbbc05; margin-right:5px;">修改</button>
+                    <button class="del-btn" data-idx="${i}" style="background:#ea4335; color:white;">刪除</button>`;
+                l.appendChild(li);
+            });
+            document.querySelectorAll('.mod-btn').forEach(b => b.onclick = () => openEditModal(b.dataset.idx));
+            document.querySelectorAll('.del-btn').forEach(b => b.onclick = () => { if(confirm("刪除？")) { allSOPs[currentSOPKey].splice(b.dataset.idx,1); renderEditSteps(); }});
+        }
+
+        function openEditModal(idx) {
+            currentEditIdx = idx;
+            const s = allSOPs[currentSOPKey][idx];
+            document.getElementById('modalText').value = s.text;
+            document.getElementById('modalNote').value = s.note || "";
+            tempEditImg = s.img;
+            document.getElementById('modalImgPreview').innerHTML = s.img ? `<img src="${s.img}" style="width:100px;">` : "無";
+            document.getElementById('editModal').style.display = 'block';
+        }
+
+        document.getElementById('modalFile').onchange = async function() {
+            if (this.files[0]) {
+                tempEditImg = await processImage(this.files[0]);
+                document.getElementById('modalImgPreview').innerHTML = `<img src="${tempEditImg}" style="width:100px;"> (已更換)`;
+            }
+        };
+
+        document.getElementById('modalConfirmBtn').onclick = function() {
+            allSOPs[currentSOPKey][currentEditIdx] = { 
+                text: document.getElementById('modalText').value, 
+                note: document.getElementById('modalNote').value, 
+                img: tempEditImg 
+            };
+            renderEditSteps();
+            document.getElementById('editModal').style.display = 'none';
+        };
+
+        document.getElementById('modalCancelBtn').onclick = () => document.getElementById('editModal').style.display = 'none';
+
+        document.getElementById('saveExitBtn').onclick = async function() {
+            this.innerText = "儲存中..."; this.disabled = true;
+            await setDoc(sopRef, { content: allSOPs });
+            showMainMenu();
+            this.innerText = "✔ 儲存所有更動並返回"; this.disabled = false;
+        };
+
+        function startTeaching(t) {
+            currentSOPKey = t; curIdx = 0;
+            document.getElementById('mainMenu').style.display = 'none';
+            document.getElementById('teachingMode').style.display = 'block';
+            document.getElementById('teachingTitle').innerText = t;
+            updateView();
+        }
+
+        function updateView() {
+            const s = allSOPs[currentSOPKey][curIdx];
+            document.getElementById('progressText').innerText = `步驟 ${curIdx + 1} / ${allSOPs[currentSOPKey].length}`;
+            document.getElementById('viewText').innerText = s.text;
+            document.getElementById('viewNote').innerText = s.note || "";
+            document.getElementById('viewImg').innerHTML = s.img ? `<img src="${s.img}">` : "無圖片";
+        }
+
+        document.getElementById('nextStepBtn').onclick = function() {
+            if (curIdx < allSOPs[currentSOPKey].length - 1) { curIdx++; updateView(); }
+            else { alert("完成！"); showMainMenu(); }
+        };
+
+        document.getElementById('exitTeachBtn').onclick = showMainMenu;
+
+        Sortable.create(document.getElementById('stepList'), { 
+            handle: '.drag-handle', animation: 150,
+            onEnd: () => {
+                const newList = [];
+                document.querySelectorAll('.step-item').forEach(li => {
+                    const text = li.querySelector('b').innerText;
+                    const note = li.querySelector('small').innerText;
+                    const img = li.querySelector('img') ? li.querySelector('img').src : "";
+                    newList.push({ text, note, img });
+                });
+                allSOPs[currentSOPKey] = newList;
+            }
+        });
+    </script>
+</body>
+</html>
