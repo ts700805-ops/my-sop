@@ -36,20 +36,24 @@
                 }
             }
         });
+// 新增這個函數
+        window.saveAndExit = async function() {
+            const btn = event.target;
+            const originalText = btn.innerText;
+            btn.innerText = "正在儲存到雲端..."; // 讓你知道有在動
+            btn.disabled = true; // 防止重複點擊
 
-        // 修改 saveToCloud 確保它會回傳 Promise
-window.saveToCloud = async function() {
-    try {
-        // 這裡必須使用 await，確保 Firebase 完成寫入
-        await setDoc(sopRef, { content: window.allSOPs });
-        console.log("雲端同步成功");
-        return true; // 回傳成功標記
-    } catch (e) {
-        console.error("儲存失敗:", e);
-        alert("雲端儲存失敗，請檢查網路或 Firebase 權限");
-        return false;
-    }
-};
+            const success = await window.saveToCloud(); // 呼叫剛才改好的儲存功能
+            
+            if (success) {
+                btn.innerText = originalText;
+                btn.disabled = false;
+                window.showMainMenu(); // 儲存成功才回目錄
+            } else {
+                btn.innerText = "儲存失敗，請再試一次";
+                btn.disabled = false;
+            }
+        };
 
         // --- 核心功能函數 ---
         window.handleLogin = function() {
@@ -273,4 +277,5 @@ window.saveToCloud = async function() {
     </div>
 </body>
 </html>
+
 
