@@ -23,4 +23,112 @@
         button { cursor: pointer; transition: 0.2s; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; }
         button:hover { opacity: 0.8; }
         button:disabled { background: #ccc !important; cursor: not-allowed; }
-        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width
+        /* 彈窗樣式 */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }
+        .modal-content { background: white; margin: 10% auto; padding: 20px; border-radius: 12px; width: 90%; max-width: 500px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="cloud-status">● 雲端：<span id="syncText">等待連線...</span></div>
+        <h1 style="text-align:center; color:#1a73e8; margin-top:0;">SOP 雲端管理系統</h1>
+        
+        <div id="loginArea" style="text-align: center; padding: 40px 0;">
+            <p style="font-size: 1.2em; font-weight: bold;">請輸入通關密碼</p>
+            <input type="password" id="passInput" placeholder="請輸入密碼">
+            <button onclick="window.handleLogin()" style="background:#1a73e8; color:white;">登入系統</button>
+        </div>
+
+        <div id="mainMenu" style="display:none;">
+            <div id="adminTools" style="display:none; margin-bottom: 20px;">
+                <button onclick="window.createNewSOP()" style="width:100%; background:#34a853; color:white;">＋ 建立全新 SOP 流程</button>
+            </div>
+            <div id="sopButtons" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap:15px;"></div>
+        </div>
+
+        <div id="editArea" style="display:none;">
+            <h2 id="currentEditingTitle" style="color:#1a73e8;"></h2>
+            <div style="background:#f8f9fa; padding:15px; border-radius:10px; margin-bottom:15px; border:1px solid #eee;">
+                <input type="text" id="stepInput" placeholder="步驟說明" style="width:90%;">
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap: wrap; margin-top:10px;">
+                    <input type="text" id="noteInput" placeholder="補充備註 (選填)" style="flex:2;">
+                    <input type="file" id="imageInput" accept="image/*" style="flex:1;">
+                    <button id="addStepBtn" onclick="window.addStep()" style="background:#34a853; color:white;">新增步驟</button>
+                </div>
+            </div>
+            <ul id="stepList" style="list-style:none; padding:0;"></ul>
+            <button id="saveExitBtn" onclick="window.saveAndExit()" style="width:100%; padding:15px; background:#1a73e8; color:white; margin-top:15px;">✔ 儲存所有更動並返回</button>
+        </div>
+
+        <div id="editModal" class="modal">
+            <div class="modal-content">
+                <h3>修改步驟內容</h3>
+                <input type="text" id="modalText" placeholder="步驟說明" style="width:95%;">
+                <input type="text" id="modalNote" placeholder="備註" style="width:95%; margin-top:10px;">
+                <div style="margin: 15px 5px;">
+                    <p>目前圖片預覽：</p>
+                    <div id="modalImgPreview" style="margin-bottom: 10px;"></div>
+                    <label style="background: #6c757d; color: white; padding: 8px 15px; border-radius: 5px; cursor: pointer; display: inline-block;">
+                        更換照片 <input type="file" id="modalFile" accept="image/*" style="display:none;" onchange="window.previewNewImg(this)">
+                    </label>
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button onclick="window.confirmEdit()" style="background: #34a853; color: white; flex: 1;">確認修改</button>
+                    <button onclick="window.closeModal()" style="background: #eee; color: black; flex: 1;">取消</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="teachingMode" style="display:none;">
+            <h2 id="teachingTitle" style="text-align:center; color:#1a73e8;"></h2>
+            <div id="progressText" style="text-align:center; color:#666; font-weight:bold;"></div>
+            <div class="teaching-layout">
+                <div class="teaching-text-side">
+                    <div id="viewText" class="view-text"></div>
+                    <div id="viewNote" class="view-note"></div>
+                </div>
+                <div class="teaching-img-side" id="viewImg"></div>
+            </div>
+            <button onclick="window.nextStep()" style="width:100%; padding:20px; font-size:1.4em; background:#34a853; color:white; margin-top:20px; font-weight:bold;">完成，下一步 ▶</button>
+            <button onclick="window.showMainMenu()" style="width:100%; margin-top:10px; padding:10px; background:#6c757d; color:white;">返回目錄</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyALcGIGqqTDg47FjSg9cy1Ld19C7WgA29Y",
+            authDomain: "sop-ta-liang.firebaseapp.com",
+            projectId: "sop-ta-liang",
+            storageBucket: "sop-ta-liang.firebasestorage.app",
+            messagingSenderId: "776894564311",
+            appId: "1:776894564311:web:ee70e633865b5f946e2d92"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const sopRef = doc(db, "data", "allSOPs");
+
+        window.allSOPs = {};
+        window.userRole = "";
+        window.currentEditIdx = -1;
+        window.tempEditImg = "";
+
+        // 監聽雲端資料
+        onSnapshot(sopRef, (docSnap) => {
+            document.getElementById('syncText').innerText = "連線正常";
+            window.allSOPs = docSnap.exists() ? (docSnap.data().content || {}) : {};
+            if (document.getElementById('mainMenu').style.display === 'block') {
+                window.renderSOPButtons();
+            }
+        }, (error) => {
+            document.getElementById('syncText').innerText = "連線失敗";
+            console.error(error);
+        });
+
+        // 登入邏輯
+        window.handleLogin = function() {
+            const p = document.getElementById('passInput').value;
+            if (p
