@@ -34,7 +34,7 @@
         <h1 style="text-align:center; color:#1a73e8; margin-top:0;">SOP 雲端管理系統</h1>
         
         <div id="loginArea" style="text-align: center; padding: 40px 0;">
-            <p>請輸入密碼以繼續 </p>
+            <p>請輸入密碼以繼續 (管理員 0000 / 員工 1234)</p>
             <input type="password" id="passInput" placeholder="請輸入密碼">
             <button onclick="window.handleLogin()" style="background:#1a73e8; color:white;">登入系統</button>
         </div>
@@ -53,4 +53,243 @@
                 <div style="display:flex; gap:10px; align-items:center; flex-wrap: wrap;">
                     <input type="text" id="noteInput" placeholder="補充備註 (選填)" style="flex:2;">
                     <input type="file" id="imageInput" accept="image/*" style="flex:1;">
-                    <button id="addStepBtn" onclick="window.add
+                    <button id="addStepBtn" onclick="window.addStep()" style="background:#34a853; color:white;">新增步驟</button>
+                </div>
+            </div>
+            <ul id="stepList" style="list-style:none; padding:0;"></ul>
+            <button id="saveExitBtn" onclick="window.saveAndExit()" style="width:100%; padding:15px; background:#1a73e8; color:white; margin-top:15px;">✔ 儲存所有更動並返回</button>
+        </div>
+
+        <div id="editModal" class="modal">
+            <div class="modal-content">
+                <h3>修改步驟內容</h3>
+                <input type="text" id="modalText" placeholder="步驟說明" style="width:95%;">
+                <input type="text" id="modalNote" placeholder="備註" style="width:95%;">
+                <div style="margin: 10px 5px;">
+                    <p>目前圖片：</p>
+                    <div id="modalImgPreview" style="margin-bottom: 10px;"></div>
+                    <label style="background: #6c757d; color: white; padding: 8px 15px; border-radius: 5px; cursor: pointer; display: inline-block;">
+                        更換照片 <input type="file" id="modalFile" accept="image/*" style="display:none;" onchange="window.previewNewImg(this)">
+                    </label>
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button onclick="window.confirmEdit()" style="background: #34a853; color: white; flex: 1;">確認修改</button>
+                    <button onclick="window.closeModal()" style="background: #eee; color: black; flex: 1;">取消</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="teachingMode" style="display:none;">
+            <h2 id="teachingTitle" style="text-align:center; color:#1a73e8;"></h2>
+            <div id="progressText" style="text-align:center; color:#666; font-weight:bold;"></div>
+            <div class="teaching-layout">
+                <div class="teaching-text-side">
+                    <div id="viewText" class="view-text"></div>
+                    <div id="viewNote" class="view-note"></div>
+                </div>
+                <div class="teaching-img-side" id="viewImg"></div>
+            </div>
+            <button onclick="window.nextStep()" style="width:100%; padding:20px; font-size:1.4em; background:#34a853; color:white; margin-top:20px; font-weight:bold;">完成，下一步 ▶</button>
+            <button onclick="window.showMainMenu()" style="width:100%; margin-top:10px; padding:10px; background:#6c757d; color:white;">返回目錄</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyALcGIGqqTDg47FjSg9cy1Ld19C7WgA29Y",
+            authDomain: "sop-ta-liang.firebaseapp.app",
+            projectId: "sop-ta-liang",
+            storageBucket: "sop-ta-liang.firebasestorage.app",
+            messagingSenderId: "776894564311",
+            appId: "1:776894564311:web:ee70e633865b5f946e2d92"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const sopRef = doc(db, "data", "allSOPs");
+
+        window.allSOPs = {};
+        window.currentEditIdx = -1;
+        window.tempEditImg = "";
+
+        onSnapshot(sopRef, (docSnap) => {
+            document.getElementById('syncText').innerText = "連線正常";
+            window.allSOPs = docSnap.exists() ? (docSnap.data().content || {}) : {};
+            if (document.getElementById('mainMenu').style.display === 'block') window.renderSOPButtons();
+        });
+
+        window.handleLogin = function() {
+            const p = document.getElementById('passInput').value;
+            if (p === "0000") { window.userRole = "admin"; window.showMainMenu(); }
+            else if (p === "1234") { window.userRole = "viewer"; window.showMainMenu(); }
+            else alert("密碼錯誤");
+        };
+
+        window.showMainMenu = function() {
+            document.getElementById('loginArea').style.display = 'none';
+            document.getElementById('editArea').style.display = 'none';
+            document.getElementById('teachingMode').style.display = 'none';
+            document.getElementById('mainMenu').style.display = 'block';
+            document.getElementById('adminTools').style.display = (window.userRole === "admin" ? 'block' : 'none');
+            window.renderSOPButtons();
+        };
+
+        window.renderSOPButtons = function() {
+            const container = document.getElementById('sopButtons');
+            container.innerHTML = "";
+            Object.keys(window.allSOPs).forEach(t => {
+                const d = document.createElement('div');
+                d.className = "sop-card";
+                d.innerHTML = `<strong>${t}</strong><br><br>
+                    <button onclick="window.startTeaching('${t}')" style="width:100%; background:#34a853; color:white;">▶ 開始學習</button>
+                    ${window.userRole==='admin'? `<button onclick="window.editExistingSOP('${t}')" style="margin-top:5px; width:100%; background:#fbbc05;">編輯</button>` : ''}`;
+                container.appendChild(d);
+            });
+        };
+
+        async function processImage(file) {
+            return new Promise(r => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const i = new Image();
+                    i.src = e.target.result;
+                    i.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let w = i.width, h = i.height;
+                        if (w > 800) { h *= 800/w; w = 800; }
+                        canvas.width = w; canvas.height = h;
+                        canvas.getContext('2d').drawImage(i, 0, 0, w, h);
+                        r(canvas.toDataURL('image/jpeg', 0.7));
+                    };
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        window.addStep = async function() {
+            const txt = document.getElementById('stepInput').value.trim();
+            const note = document.getElementById('noteInput').value.trim();
+            const file = document.getElementById('imageInput').files[0];
+            if (!txt) return alert("請輸入說明");
+            const btn = document.getElementById('addStepBtn');
+            btn.innerText = "處理中..."; btn.disabled = true;
+            let img = file ? await processImage(file) : "";
+            window.allSOPs[window.currentSOPKey].push({ text: txt, note: note, img: img });
+            document.getElementById('stepInput').value = "";
+            document.getElementById('noteInput').value = "";
+            document.getElementById('imageInput').value = "";
+            btn.innerText = "新增步驟"; btn.disabled = false;
+            window.renderEditSteps();
+        };
+
+        // --- 修改功能核心 ---
+        window.openEditModal = function(index) {
+            window.currentEditIdx = index;
+            const step = window.allSOPs[window.currentSOPKey][index];
+            document.getElementById('modalText').value = step.text;
+            document.getElementById('modalNote').value = step.note || "";
+            window.tempEditImg = step.img;
+            document.getElementById('modalImgPreview').innerHTML = step.img ? `<img src="${step.img}" style="width:100px;">` : "無圖片";
+            document.getElementById('editModal').style.display = 'block';
+        };
+
+        window.previewNewImg = async function(input) {
+            const file = input.files[0];
+            if (file) {
+                window.tempEditImg = await processImage(file);
+                document.getElementById('modalImgPreview').innerHTML = `<img src="${window.tempEditImg}" style="width:100px;"> (已更換)`;
+            }
+        };
+
+        window.confirmEdit = function() {
+            const newText = document.getElementById('modalText').value.trim();
+            const newNote = document.getElementById('modalNote').value.trim();
+            if (!newText) return alert("說明不能為空");
+            window.allSOPs[window.currentSOPKey][window.currentEditIdx] = { 
+                text: newText, 
+                note: newNote, 
+                img: window.tempEditImg 
+            };
+            window.renderEditSteps();
+            window.closeModal();
+        };
+
+        window.closeModal = function() {
+            document.getElementById('editModal').style.display = 'none';
+        };
+
+        window.renderEditSteps = function() {
+            const l = document.getElementById('stepList');
+            l.innerHTML = "";
+            window.allSOPs[window.currentSOPKey].forEach((s, i) => {
+                const li = document.createElement('li');
+                li.className = "step-item";
+                li.innerHTML = `
+                    <div class="drag-handle">☰</div> 
+                    <div style="flex:1;"><b>${s.text}</b><br><small style="color:#666;">${s.note || ""}</small></div>
+                    ${s.img ? `<img src="${s.img}" style="width:50px; height:40px; margin-right:10px; object-fit:cover;">` : ''}
+                    <div style="display:flex; gap:5px;">
+                        <button onclick="window.openEditModal(${i})" style="background:#fbbc05; color:black; padding:5px 10px;">修改</button>
+                        <button onclick="window.allSOPs[window.currentSOPKey].splice(${i},1); window.renderEditSteps();" style="background:#ea4335; color:white; padding:5px 10px;">刪除</button>
+                    </div>`;
+                l.appendChild(li);
+            });
+        };
+
+        window.saveAndExit = async function() {
+            const btn = document.getElementById('saveExitBtn');
+            btn.innerText = "儲存中..."; btn.disabled = true;
+            try {
+                await setDoc(sopRef, { content: window.allSOPs });
+                window.showMainMenu();
+            } catch (e) { alert("儲存失敗"); }
+            btn.innerText = "✔ 儲存所有更動並返回"; btn.disabled = false;
+        };
+
+        window.createNewSOP = function() {
+            const t = prompt("名稱？");
+            if (t && !window.allSOPs[t]) { window.allSOPs[t] = []; window.editExistingSOP(t); }
+        };
+
+        window.editExistingSOP = function(t) {
+            window.currentSOPKey = t;
+            document.getElementById('mainMenu').style.display = 'none';
+            document.getElementById('editArea').style.display = 'block';
+            document.getElementById('currentEditingTitle').innerText = "編輯：" + t;
+            window.renderEditSteps();
+        };
+
+        window.startTeaching = function(t) {
+            window.currentSOPKey = t; window.curIdx = 0;
+            const steps = window.allSOPs[t];
+            if (!steps || steps.length === 0) return alert("尚無內容");
+            document.getElementById('mainMenu').style.display = 'none';
+            document.getElementById('teachingMode').style.display = 'block';
+            document.getElementById('teachingTitle').innerText = t;
+            window.updateView();
+        };
+
+        window.updateView = function() {
+            const s = window.allSOPs[window.currentSOPKey][window.curIdx];
+            document.getElementById('progressText').innerText = `步驟 ${window.curIdx + 1} / ${window.allSOPs[window.currentSOPKey].length}`;
+            document.getElementById('viewText').innerText = s.text;
+            document.getElementById('viewNote').innerText = s.note || "";
+            document.getElementById('viewNote').style.display = s.note ? "block" : "none";
+            document.getElementById('viewImg').innerHTML = s.img ? `<img src="${s.img}">` : "無圖片";
+        };
+
+        window.nextStep = function() {
+            if (window.curIdx < window.allSOPs[window.currentSOPKey].length - 1) {
+                window.curIdx++; window.updateView();
+            } else { alert("完成！"); window.showMainMenu(); }
+        };
+
+        window.addEventListener('DOMContentLoaded', () => {
+            Sortable.create(document.getElementById('stepList'), { handle: '.drag-handle', animation: 150 });
+        });
+    </script>
+</body>
+</html>
