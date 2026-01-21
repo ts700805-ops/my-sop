@@ -157,7 +157,7 @@
             document.querySelectorAll('.edit-sop-btn').forEach(b => b.onclick = () => editExistingSOP(b.dataset.id));
         }
 
-        // 修改處：將解析度降至 500，品質降至 0.4 以達到最小檔案
+        // 極致壓縮函數：寬度 400px，品質 0.2
         async function processImage(file) {
             return new Promise(r => {
                 const reader = new FileReader();
@@ -167,10 +167,11 @@
                     i.onload = () => {
                         const canvas = document.createElement('canvas');
                         let w = i.width, h = i.height;
-                        if (w > 500) { h *= 500/w; w = 500; }
+                        if (w > 400) { h *= 400/w; w = 400; }
                         canvas.width = w; canvas.height = h;
                         canvas.getContext('2d').drawImage(i, 0, 0, w, h);
-                        r(canvas.toDataURL('image/jpeg', 0.4));
+                        // 強制轉換為 jpeg 並將品質壓至 0.2
+                        r(canvas.toDataURL('image/jpeg', 0.2));
                     };
                 };
                 reader.readAsDataURL(file);
@@ -239,62 +240,3 @@
                 document.getElementById('modalImgPreview').innerHTML = `<img src="${tempEditImg}" style="width:100px;"> (已更換)`;
             }
         };
-
-        document.getElementById('modalConfirmBtn').onclick = function() {
-            allSOPs[currentSOPKey][currentEditIdx] = { 
-                text: document.getElementById('modalText').value, 
-                note: document.getElementById('modalNote').value, 
-                img: tempEditImg 
-            };
-            renderEditSteps();
-            document.getElementById('editModal').style.display = 'none';
-        };
-
-        document.getElementById('modalCancelBtn').onclick = () => document.getElementById('editModal').style.display = 'none';
-
-        document.getElementById('saveExitBtn').onclick = async function() {
-            this.innerText = "儲存中..."; this.disabled = true;
-            await setDoc(sopRef, { content: allSOPs });
-            showMainMenu();
-            this.innerText = "✔ 儲存所有更動並返回"; this.disabled = false;
-        };
-
-        function startTeaching(t) {
-            currentSOPKey = t; curIdx = 0;
-            document.getElementById('mainMenu').style.display = 'none';
-            document.getElementById('teachingMode').style.display = 'block';
-            document.getElementById('teachingTitle').innerText = t;
-            updateView();
-        }
-
-        function updateView() {
-            const s = allSOPs[currentSOPKey][curIdx];
-            document.getElementById('progressText').innerText = `步驟 ${curIdx + 1} / ${allSOPs[currentSOPKey].length}`;
-            document.getElementById('viewText').innerText = s.text;
-            document.getElementById('viewNote').innerText = s.note || "";
-            document.getElementById('viewImg').innerHTML = s.img ? `<img src="${s.img}">` : "無圖片";
-        }
-
-        document.getElementById('nextStepBtn').onclick = function() {
-            if (curIdx < allSOPs[currentSOPKey].length - 1) { curIdx++; updateView(); }
-            else { alert("完成！"); showMainMenu(); }
-        };
-
-        document.getElementById('exitTeachBtn').onclick = showMainMenu;
-
-        Sortable.create(document.getElementById('stepList'), { 
-            handle: '.drag-handle', animation: 150,
-            onEnd: () => {
-                const newList = [];
-                document.querySelectorAll('.step-item').forEach(li => {
-                    const text = li.querySelector('b').innerText;
-                    const note = li.querySelector('small').innerText;
-                    const img = li.querySelector('img') ? li.querySelector('img').src : "";
-                    newList.push({ text, note, img });
-                });
-                allSOPs[currentSOPKey] = newList;
-            }
-        });
-    </script>
-</body>
-</html>
