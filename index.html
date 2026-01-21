@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SOP 雲端管理系統 (獨立儲存版)</title>
+    <title>SOP 雲端管理系統</title>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <style>
         body { font-family: "Microsoft JhengHei", sans-serif; background: #f0f2f5; padding: 20px; margin: 0; }
@@ -56,7 +56,7 @@
                 </div>
             </div>
             <ul id="stepList" style="list-style:none; padding:0;"></ul>
-            <button id="saveExitBtn" style="width:100%; padding:15px; background:#1a73e8; color:white; margin-top:15px;">✔ 儲存此 SOP 並返回</button>
+            <button id="saveExitBtn" style="width:100%; padding:15px; background:#1a73e8; color:white; margin-top:15px;">✔ 儲存所有更動並返回</button>
         </div>
 
         <div id="editModal" class="modal">
@@ -95,7 +95,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyALcGIGqqTDg47FjSg9cy1Ld19C7WgA29Y",
@@ -108,27 +108,23 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        const sopsCol = collection(db, "sops"); // 改用集合儲存
+        const sopRef = doc(db, "data", "allSOPs");
 
-        let allSOPs = {}; // 本地緩存所有 SOP
+        let allSOPs = {};
         let userRole = "";
         let currentSOPKey = "";
-        let currentSteps = []; // 當前編輯中的步驟清單
         let currentEditIdx = -1;
         let tempEditImg = "";
         let curIdx = 0;
 
-        // 監聽整個集合
-        onSnapshot(sopsCol, (querySnapshot) => {
+        // 監聽
+        onSnapshot(sopRef, (docSnap) => {
             document.getElementById('syncText').innerText = "連線正常";
-            allSOPs = {};
-            querySnapshot.forEach((doc) => {
-                allSOPs[doc.id] = doc.data().steps || [];
-            });
+            allSOPs = docSnap.exists() ? (docSnap.data().content || {}) : {};
             if (document.getElementById('mainMenu').style.display === 'block') renderSOPButtons();
         });
 
-        // 登入邏輯 (保留原始設定)
+        // 登入
         document.getElementById('loginBtn').onclick = function() {
             const p = document.getElementById('passInput').value;
             if (p === "000000") { userRole = "admin"; showMainMenu(); }
@@ -153,23 +149,15 @@
                 d.className = "sop-card";
                 d.innerHTML = `<strong>${t}</strong><br><br>
                     <button class="teach-btn" data-id="${t}" style="width:100%; background:#34a853; color:white;">▶ 開始學習</button>
-                    ${userRole==='admin'? `
-                        <button class="edit-sop-btn" data-id="${t}" style="margin-top:5px; width:100%; background:#fbbc05;">編輯</button>
-                        <button class="del-sop-btn" data-id="${t}" style="margin-top:5px; width:100%; background:#ea4335; color:white; font-size:0.8em;">刪除此流程</button>
-                    ` : ''}`;
+                    ${userRole==='admin'? `<button class="edit-sop-btn" data-id="${t}" style="margin-top:5px; width:100%; background:#fbbc05;">編輯</button>` : ''}`;
                 container.appendChild(d);
             });
 
             document.querySelectorAll('.teach-btn').forEach(b => b.onclick = () => startTeaching(b.dataset.id));
             document.querySelectorAll('.edit-sop-btn').forEach(b => b.onclick = () => editExistingSOP(b.dataset.id));
-            document.querySelectorAll('.del-sop-btn').forEach(b => b.onclick = async () => {
-                if(confirm(`確定要刪除「${b.dataset.id}」整個流程嗎？不可復原！`)) {
-                    await deleteDoc(doc(db, "sops", b.dataset.id));
-                }
-            });
         }
 
-        // 極致壓縮函數 (400px, 品質 0.2)
+        // 修改處：壓縮功能
         async function processImage(file) {
             return new Promise(r => {
                 const reader = new FileReader();
@@ -190,21 +178,15 @@
         }
 
         document.getElementById('createSopBtn').onclick = function() {
-            const t = prompt("請輸入新流程名稱：");
-            if (t) {
-                if (allSOPs[t]) return alert("名稱重複了");
-                currentSOPKey = t;
-                currentSteps = [];
-                editExistingSOP(t);
-            }
+            const t = prompt("流程名稱？");
+            if (t && !allSOPs[t]) { allSOPs[t] = []; editExistingSOP(t); }
         };
 
         function editExistingSOP(t) {
             currentSOPKey = t;
-            currentSteps = JSON.parse(JSON.stringify(allSOPs[t] || [])); // 複製一份出來編輯
             document.getElementById('mainMenu').style.display = 'none';
             document.getElementById('editArea').style.display = 'block';
-            document.getElementById('currentEditingTitle').innerText = "編輯中：" + t;
+            document.getElementById('currentEditingTitle').innerText = t;
             renderEditSteps();
         }
 
@@ -215,7 +197,7 @@
             if (!txt) return alert("請輸入說明");
             this.innerText = "處理中..."; this.disabled = true;
             let img = file ? await processImage(file) : "";
-            currentSteps.push({ text: txt, note: note, img: img });
+            allSOPs[currentSOPKey].push({ text: txt, note: note, img: img });
             document.getElementById('stepInput').value = "";
             document.getElementById('noteInput').value = "";
             document.getElementById('imageInput').value = "";
@@ -226,7 +208,7 @@
         function renderEditSteps() {
             const l = document.getElementById('stepList');
             l.innerHTML = "";
-            currentSteps.forEach((s, i) => {
+            allSOPs[currentSOPKey].forEach((s, i) => {
                 const li = document.createElement('li');
                 li.className = "step-item";
                 li.innerHTML = `
@@ -238,17 +220,12 @@
                 l.appendChild(li);
             });
             document.querySelectorAll('.mod-btn').forEach(b => b.onclick = () => openEditModal(b.dataset.idx));
-            document.querySelectorAll('.del-btn').forEach(b => b.onclick = () => {
-                if(confirm("確定刪除此步驟？")) {
-                    currentSteps.splice(b.dataset.idx, 1);
-                    renderEditSteps();
-                }
-            });
+            document.querySelectorAll('.del-btn').forEach(b => b.onclick = () => { if(confirm("刪除？")) { allSOPs[currentSOPKey].splice(b.dataset.idx,1); renderEditSteps(); }});
         }
 
         function openEditModal(idx) {
             currentEditIdx = parseInt(idx);
-            const s = currentSteps[currentEditIdx];
+            const s = allSOPs[currentSOPKey][currentEditIdx];
             document.getElementById('modalText').value = s.text;
             document.getElementById('modalNote').value = s.note || "";
             tempEditImg = s.img;
@@ -264,7 +241,7 @@
         };
 
         document.getElementById('modalConfirmBtn').onclick = function() {
-            currentSteps[currentEditIdx] = { 
+            allSOPs[currentSOPKey][currentEditIdx] = { 
                 text: document.getElementById('modalText').value, 
                 note: document.getElementById('modalNote').value, 
                 img: tempEditImg 
@@ -275,24 +252,15 @@
 
         document.getElementById('modalCancelBtn').onclick = () => document.getElementById('editModal').style.display = 'none';
 
-        // 獨立儲存邏輯：只更新目前這份 SOP 文件
         document.getElementById('saveExitBtn').onclick = async function() {
             this.innerText = "儲存中..."; this.disabled = true;
-            try {
-                const docRef = doc(db, "sops", currentSOPKey);
-                await setDoc(docRef, { steps: currentSteps });
-                showMainMenu();
-            } catch (e) {
-                alert("儲存失敗：" + e.message);
-            }
-            this.innerText = "✔ 儲存此 SOP 並返回"; this.disabled = false;
+            await setDoc(sopRef, { content: allSOPs });
+            showMainMenu();
+            this.innerText = "✔ 儲存所有更動並返回"; this.disabled = false;
         };
 
         function startTeaching(t) {
-            currentSOPKey = t;
-            currentSteps = allSOPs[t] || [];
-            curIdx = 0;
-            if (currentSteps.length === 0) return alert("此流程尚無步驟");
+            currentSOPKey = t; curIdx = 0;
             document.getElementById('mainMenu').style.display = 'none';
             document.getElementById('teachingMode').style.display = 'block';
             document.getElementById('teachingTitle').innerText = t;
@@ -300,16 +268,16 @@
         }
 
         function updateView() {
-            const s = currentSteps[curIdx];
-            document.getElementById('progressText').innerText = `步驟 ${curIdx + 1} / ${currentSteps.length}`;
+            const s = allSOPs[currentSOPKey][curIdx];
+            document.getElementById('progressText').innerText = `步驟 ${curIdx + 1} / ${allSOPs[currentSOPKey].length}`;
             document.getElementById('viewText').innerText = s.text;
             document.getElementById('viewNote').innerText = s.note || "";
             document.getElementById('viewImg').innerHTML = s.img ? `<img src="${s.img}">` : "無圖片";
         }
 
         document.getElementById('nextStepBtn').onclick = function() {
-            if (curIdx < currentSteps.length - 1) { curIdx++; updateView(); }
-            else { alert("恭喜完成！"); showMainMenu(); }
+            if (curIdx < allSOPs[currentSOPKey].length - 1) { curIdx++; updateView(); }
+            else { alert("完成！"); showMainMenu(); }
         };
 
         document.getElementById('exitTeachBtn').onclick = showMainMenu;
@@ -325,7 +293,7 @@
                         img: li.querySelector('.s-img') ? li.querySelector('.s-img').src : "" 
                     });
                 });
-                currentSteps = newList;
+                allSOPs[currentSOPKey] = newList;
             }
         });
     </script>
