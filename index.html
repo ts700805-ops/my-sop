@@ -157,7 +157,7 @@
             document.querySelectorAll('.edit-sop-btn').forEach(b => b.onclick = () => editExistingSOP(b.dataset.id));
         }
 
-        // 極致壓縮函數：寬度 400px，品質 0.2
+        // 修改處：壓縮功能
         async function processImage(file) {
             return new Promise(r => {
                 const reader = new FileReader();
@@ -170,7 +170,6 @@
                         if (w > 400) { h *= 400/w; w = 400; }
                         canvas.width = w; canvas.height = h;
                         canvas.getContext('2d').drawImage(i, 0, 0, w, h);
-                        // 強制轉換為 jpeg 並將品質壓至 0.2
                         r(canvas.toDataURL('image/jpeg', 0.2));
                     };
                 };
@@ -214,8 +213,8 @@
                 li.className = "step-item";
                 li.innerHTML = `
                     <div class="drag-handle">☰</div> 
-                    <div style="flex:1;"><b>${s.text}</b><br><small>${s.note || ""}</small></div>
-                    ${s.img ? `<img src="${s.img}" style="width:50px; height:40px; margin-right:10px; object-fit:cover;">` : ''}
+                    <div style="flex:1;"><b class="s-text">${s.text}</b><br><small class="s-note">${s.note || ""}</small></div>
+                    ${s.img ? `<img src="${s.img}" class="s-img" style="width:50px; height:40px; margin-right:10px; object-fit:cover;">` : ''}
                     <button class="mod-btn" data-idx="${i}" style="background:#fbbc05; margin-right:5px;">修改</button>
                     <button class="del-btn" data-idx="${i}" style="background:#ea4335; color:white;">刪除</button>`;
                 l.appendChild(li);
@@ -225,8 +224,8 @@
         }
 
         function openEditModal(idx) {
-            currentEditIdx = idx;
-            const s = allSOPs[currentSOPKey][idx];
+            currentEditIdx = parseInt(idx);
+            const s = allSOPs[currentSOPKey][currentEditIdx];
             document.getElementById('modalText').value = s.text;
             document.getElementById('modalNote').value = s.note || "";
             tempEditImg = s.img;
@@ -240,3 +239,63 @@
                 document.getElementById('modalImgPreview').innerHTML = `<img src="${tempEditImg}" style="width:100px;"> (已更換)`;
             }
         };
+
+        document.getElementById('modalConfirmBtn').onclick = function() {
+            allSOPs[currentSOPKey][currentEditIdx] = { 
+                text: document.getElementById('modalText').value, 
+                note: document.getElementById('modalNote').value, 
+                img: tempEditImg 
+            };
+            renderEditSteps();
+            document.getElementById('editModal').style.display = 'none';
+        };
+
+        document.getElementById('modalCancelBtn').onclick = () => document.getElementById('editModal').style.display = 'none';
+
+        document.getElementById('saveExitBtn').onclick = async function() {
+            this.innerText = "儲存中..."; this.disabled = true;
+            await setDoc(sopRef, { content: allSOPs });
+            showMainMenu();
+            this.innerText = "✔ 儲存所有更動並返回"; this.disabled = false;
+        };
+
+        function startTeaching(t) {
+            currentSOPKey = t; curIdx = 0;
+            document.getElementById('mainMenu').style.display = 'none';
+            document.getElementById('teachingMode').style.display = 'block';
+            document.getElementById('teachingTitle').innerText = t;
+            updateView();
+        }
+
+        function updateView() {
+            const s = allSOPs[currentSOPKey][curIdx];
+            document.getElementById('progressText').innerText = `步驟 ${curIdx + 1} / ${allSOPs[currentSOPKey].length}`;
+            document.getElementById('viewText').innerText = s.text;
+            document.getElementById('viewNote').innerText = s.note || "";
+            document.getElementById('viewImg').innerHTML = s.img ? `<img src="${s.img}">` : "無圖片";
+        }
+
+        document.getElementById('nextStepBtn').onclick = function() {
+            if (curIdx < allSOPs[currentSOPKey].length - 1) { curIdx++; updateView(); }
+            else { alert("完成！"); showMainMenu(); }
+        };
+
+        document.getElementById('exitTeachBtn').onclick = showMainMenu;
+
+        Sortable.create(document.getElementById('stepList'), { 
+            handle: '.drag-handle', animation: 150,
+            onEnd: () => {
+                const newList = [];
+                document.querySelectorAll('.step-item').forEach(li => {
+                    newList.push({ 
+                        text: li.querySelector('.s-text').innerText, 
+                        note: li.querySelector('.s-note').innerText, 
+                        img: li.querySelector('.s-img') ? li.querySelector('.s-img').src : "" 
+                    });
+                });
+                allSOPs[currentSOPKey] = newList;
+            }
+        });
+    </script>
+</body>
+</html>
