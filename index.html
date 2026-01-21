@@ -29,7 +29,7 @@
 </head>
 <body>
     <div class="container">
-        <div class="cloud-status">● 雲端：<span id="syncText">連線中...</span></div>
+        <div class="cloud-status">● 雲端：<span id="syncText">等待連線...</span></div>
         <h1 style="text-align:center; color:#1a73e8; margin-top:0;">SOP 雲端管理系統</h1>
         
         <div id="loginArea" style="text-align: center; padding: 40px 0;">
@@ -47,4 +47,48 @@
 
         <div id="editArea" style="display:none;">
             <h2 id="currentEditingTitle" style="color:#1a73e8;"></h2>
-            <div style="background:#f8f9fa; padding:15px; border-radius:10px; margin-bottom:
+            <div style="background:#f8f9fa; padding:15px; border-radius:10px; margin-bottom:15px; border:1px solid #eee;">
+                <input type="text" id="stepInput" placeholder="步驟說明" style="width:90%;">
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap: wrap; margin-top:10px;">
+                    <input type="text" id="noteInput" placeholder="補充備註 (選填)" style="flex:2;">
+                    <input type="file" id="imageInput" accept="image/*" style="flex:1;">
+                    <button id="addStepBtn" style="background:#34a853; color:white;">新增步驟</button>
+                </div>
+            </div>
+            <ul id="stepList" style="list-style:none; padding:0;"></ul>
+            <button id="saveExitBtn" style="width:100%; padding:15px; background:#1a73e8; color:white; margin-top:15px;">✔ 儲存所有更動並返回</button>
+        </div>
+
+        <div id="editModal" class="modal">
+            <div class="modal-content">
+                <h3>修改步驟內容</h3>
+                <input type="text" id="modalText" placeholder="步驟說明" style="width:95%;">
+                <input type="text" id="modalNote" placeholder="備註" style="width:95%; margin-top:10px;">
+                <div style="margin: 15px 5px;">
+                    <p>目前圖片預覽：</p>
+                    <div id="modalImgPreview" style="margin-bottom: 10px;"></div>
+                    <label style="background: #6c757d; color: white; padding: 8px 15px; border-radius: 5px; cursor: pointer; display: inline-block;">
+                        更換照片 <input type="file" id="modalFile" accept="image/*" style="display:none;">
+                    </label>
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button id="modalConfirmBtn" style="background: #34a853; color: white; flex: 1;">確認修改</button>
+                    <button id="modalCancelBtn" style="background: #eee; color: black; flex: 1;">取消</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="teachingMode" style="display:none;">
+            <h2 id="teachingTitle" style="text-align:center; color:#1a73e8;"></h2>
+            <div id="progressText" style="text-align:center; color:#666; font-weight:bold;"></div>
+            <div class="teaching-layout">
+                <div class="teaching-text-side">
+                    <div id="viewText" class="view-text"></div>
+                    <div id="viewNote" class="view-note"></div>
+                </div>
+                <div class="teaching-img-side" id="viewImg"></div>
+            </div>
+            <button id="nextStepBtn" style="width:100%; padding:20px; font-size:1.4em; background:#34a853; color:white; margin-top:20px; font-weight:bold;">完成，下一步 ▶</button>
+            <button id="exitTeachBtn" style="width:100%; margin-top:10px; padding:10px; background:#6c757d; color:white;">返回目錄</button>
+        </div>
+    </div>
