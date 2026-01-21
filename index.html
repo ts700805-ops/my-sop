@@ -56,7 +56,7 @@
                 </div>
             </div>
             <ul id="stepList" style="list-style:none; padding:0;"></ul>
-            <button id="saveExitBtn" style="width:100%; padding:15px; background:#1a73e8; color:white; margin-top:15px;">✔ 儲存所有更動並返回</button>
+            <button id="saveExitBtn" style="width:100%; padding:15px; background:#1a73e8; color:white; margin-top:15px;">✔ 儲存並返回目錄</button>
         </div>
 
         <div id="editModal" class="modal">
@@ -117,19 +117,29 @@
         let tempEditImg = "";
         let curIdx = 0;
 
-        // 監聽
+        // 監聽雲端
         onSnapshot(sopRef, (docSnap) => {
             document.getElementById('syncText').innerText = "連線正常";
             allSOPs = docSnap.exists() ? (docSnap.data().content || {}) : {};
+            // 如果目前正在主選單，就重刷按鈕
             if (document.getElementById('mainMenu').style.display === 'block') renderSOPButtons();
+        }, (err) => {
+            document.getElementById('syncText').innerText = "同步失敗";
+            console.error(err);
         });
 
-        // 登入
+        // 登入功能
         document.getElementById('loginBtn').onclick = function() {
-            const p = document.getElementById('passInput').value;
-            if (p === "000000") { userRole = "admin"; showMainMenu(); }
-            else if (p === "1234") { userRole = "viewer"; showMainMenu(); }
-            else alert("密碼錯誤");
+            const pass = document.getElementById('passInput').value;
+            if (pass === "000000") {
+                userRole = "admin";
+                showMainMenu();
+            } else if (pass === "1234") {
+                userRole = "viewer";
+                showMainMenu();
+            } else {
+                alert("密碼錯誤！");
+            }
         };
 
         function showMainMenu() {
@@ -152,24 +162,24 @@
                     ${userRole==='admin'? `<button class="edit-sop-btn" data-id="${t}" style="margin-top:5px; width:100%; background:#fbbc05;">編輯</button>` : ''}`;
                 container.appendChild(d);
             });
-
             document.querySelectorAll('.teach-btn').forEach(b => b.onclick = () => startTeaching(b.dataset.id));
             document.querySelectorAll('.edit-sop-btn').forEach(b => b.onclick = () => editExistingSOP(b.dataset.id));
         }
 
+        // 極致圖片壓縮 (500px, 品質 0.4)
         async function processImage(file) {
             return new Promise(r => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
-                    const i = new Image();
-                    i.src = e.target.result;
-                    i.onload = () => {
+                    const img = new Image();
+                    img.src = e.target.result;
+                    img.onload = () => {
                         const canvas = document.createElement('canvas');
-                        let w = i.width, h = i.height;
-                        if (w > 800) { h *= 800/w; w = 800; }
+                        let w = img.width, h = img.height;
+                        if (w > 500) { h *= 500/w; w = 500; }
                         canvas.width = w; canvas.height = h;
-                        canvas.getContext('2d').drawImage(i, 0, 0, w, h);
-                        r(canvas.toDataURL('image/jpeg', 0.7));
+                        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                        r(canvas.toDataURL('image/jpeg', 0.4));
                     };
                 };
                 reader.readAsDataURL(file);
@@ -177,15 +187,19 @@
         }
 
         document.getElementById('createSopBtn').onclick = function() {
-            const t = prompt("流程名稱？");
-            if (t && !allSOPs[t]) { allSOPs[t] = []; editExistingSOP(t); }
+            const t = prompt("請輸入新 SOP 流程名稱：");
+            if (t) {
+                if (allSOPs[t]) return alert("名稱已存在");
+                allSOPs[t] = [];
+                editExistingSOP(t);
+            }
         };
 
         function editExistingSOP(t) {
             currentSOPKey = t;
             document.getElementById('mainMenu').style.display = 'none';
             document.getElementById('editArea').style.display = 'block';
-            document.getElementById('currentEditingTitle').innerText = t;
+            document.getElementById('currentEditingTitle').innerText = "編輯中：" + t;
             renderEditSteps();
         }
 
@@ -194,9 +208,9 @@
             const note = document.getElementById('noteInput').value.trim();
             const file = document.getElementById('imageInput').files[0];
             if (!txt) return alert("請輸入說明");
-            this.innerText = "處理中..."; this.disabled = true;
-            let img = file ? await processImage(file) : "";
-            allSOPs[currentSOPKey].push({ text: txt, note: note, img: img });
+            this.innerText = "壓縮中..."; this.disabled = true;
+            let imgData = file ? await processImage(file) : "";
+            allSOPs[currentSOPKey].push({ text: txt, note: note, img: imgData });
             document.getElementById('stepInput').value = "";
             document.getElementById('noteInput').value = "";
             document.getElementById('imageInput').value = "";
@@ -208,92 +222,3 @@
             const l = document.getElementById('stepList');
             l.innerHTML = "";
             allSOPs[currentSOPKey].forEach((s, i) => {
-                const li = document.createElement('li');
-                li.className = "step-item";
-                li.innerHTML = `
-                    <div class="drag-handle">☰</div> 
-                    <div style="flex:1;"><b>${s.text}</b><br><small>${s.note || ""}</small></div>
-                    ${s.img ? `<img src="${s.img}" style="width:50px; height:40px; margin-right:10px; object-fit:cover;">` : ''}
-                    <button class="mod-btn" data-idx="${i}" style="background:#fbbc05; margin-right:5px;">修改</button>
-                    <button class="del-btn" data-idx="${i}" style="background:#ea4335; color:white;">刪除</button>`;
-                l.appendChild(li);
-            });
-            document.querySelectorAll('.mod-btn').forEach(b => b.onclick = () => openEditModal(b.dataset.idx));
-            document.querySelectorAll('.del-btn').forEach(b => b.onclick = () => { if(confirm("刪除？")) { allSOPs[currentSOPKey].splice(b.dataset.idx,1); renderEditSteps(); }});
-        }
-
-        function openEditModal(idx) {
-            currentEditIdx = idx;
-            const s = allSOPs[currentSOPKey][idx];
-            document.getElementById('modalText').value = s.text;
-            document.getElementById('modalNote').value = s.note || "";
-            tempEditImg = s.img;
-            document.getElementById('modalImgPreview').innerHTML = s.img ? `<img src="${s.img}" style="width:100px;">` : "無";
-            document.getElementById('editModal').style.display = 'block';
-        }
-
-        document.getElementById('modalFile').onchange = async function() {
-            if (this.files[0]) {
-                tempEditImg = await processImage(this.files[0]);
-                document.getElementById('modalImgPreview').innerHTML = `<img src="${tempEditImg}" style="width:100px;"> (已更換)`;
-            }
-        };
-
-        document.getElementById('modalConfirmBtn').onclick = function() {
-            allSOPs[currentSOPKey][currentEditIdx] = { 
-                text: document.getElementById('modalText').value, 
-                note: document.getElementById('modalNote').value, 
-                img: tempEditImg 
-            };
-            renderEditSteps();
-            document.getElementById('editModal').style.display = 'none';
-        };
-
-        document.getElementById('modalCancelBtn').onclick = () => document.getElementById('editModal').style.display = 'none';
-
-        document.getElementById('saveExitBtn').onclick = async function() {
-            this.innerText = "儲存中..."; this.disabled = true;
-            await setDoc(sopRef, { content: allSOPs });
-            showMainMenu();
-            this.innerText = "✔ 儲存所有更動並返回"; this.disabled = false;
-        };
-
-        function startTeaching(t) {
-            currentSOPKey = t; curIdx = 0;
-            document.getElementById('mainMenu').style.display = 'none';
-            document.getElementById('teachingMode').style.display = 'block';
-            document.getElementById('teachingTitle').innerText = t;
-            updateView();
-        }
-
-        function updateView() {
-            const s = allSOPs[currentSOPKey][curIdx];
-            document.getElementById('progressText').innerText = `步驟 ${curIdx + 1} / ${allSOPs[currentSOPKey].length}`;
-            document.getElementById('viewText').innerText = s.text;
-            document.getElementById('viewNote').innerText = s.note || "";
-            document.getElementById('viewImg').innerHTML = s.img ? `<img src="${s.img}">` : "無圖片";
-        }
-
-        document.getElementById('nextStepBtn').onclick = function() {
-            if (curIdx < allSOPs[currentSOPKey].length - 1) { curIdx++; updateView(); }
-            else { alert("完成！"); showMainMenu(); }
-        };
-
-        document.getElementById('exitTeachBtn').onclick = showMainMenu;
-
-        Sortable.create(document.getElementById('stepList'), { 
-            handle: '.drag-handle', animation: 150,
-            onEnd: () => {
-                const newList = [];
-                document.querySelectorAll('.step-item').forEach(li => {
-                    const text = li.querySelector('b').innerText;
-                    const note = li.querySelector('small').innerText;
-                    const img = li.querySelector('img') ? li.querySelector('img').src : "";
-                    newList.push({ text, note, img });
-                });
-                allSOPs[currentSOPKey] = newList;
-            }
-        });
-    </script>
-</body>
-</html>
