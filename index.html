@@ -29,13 +29,13 @@
 </head>
 <body>
     <div class="container">
-        <div class="cloud-status">● 雲端狀態：<span id="syncText">系統就緒</span></div>
+        <div class="cloud-status">● 狀態：<span id="syncText">系統載入中...</span></div>
         <h1 style="text-align:center; color:#1a73e8; margin-top:0;">SOP 雲端管理系統</h1>
         
         <div id="loginArea" style="text-align: center; padding: 40px 0;">
             <p style="font-size: 1.2em; font-weight: bold;">請輸入通關密碼</p>
             <input type="password" id="passInput" placeholder="請輸入密碼">
-            <button onclick="checkLogin()" style="background:#1a73e8; color:white;">登入系統</button>
+            <button id="finalLoginBtn" style="background:#1a73e8; color:white;">登入系統</button>
         </div>
 
         <div id="mainMenu" style="display:none;">
@@ -50,4 +50,28 @@
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
                 <h2 id="currentEditingTitle" style="color:#1a73e8; margin:0;"></h2>
                 <input type="text" id="renameInput" placeholder="修改 SOP 名稱">
-                <button id="renameBtn" style="background:#6c7
+                <button id="renameBtn" style="background:#6c757d; color:white;">更名</button>
+            </div>
+            <div style="background:#f8f9fa; padding:15px; border-radius:10px; margin-bottom:15px; border:1px solid #eee;">
+                <input type="text" id="stepInput" placeholder="步驟說明" style="width:90%;">
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap: wrap; margin-top:10px;">
+                    <input type="text" id="noteInput" placeholder="補充備註" style="flex:2;">
+                    <input type="file" id="imageInput" accept="image/*" style="flex:1;">
+                    <button id="addStepBtn" style="background:#34a853; color:white;">新增步驟</button>
+                </div>
+            </div>
+            <ul id="stepList" style="list-style:none; padding:0;"></ul>
+            <button id="saveExitBtn" style="width:100%; padding:15px; background:#1a73e8; color:white; margin-top:15px;">✔ 儲存此 SOP 並返回</button>
+        </div>
+
+        <div id="teachingMode" style="display:none;">
+            <h2 id="teachingTitle" style="text-align:center; color:#1a73e8;"></h2>
+            <div id="progressText" style="text-align:center; font-weight:bold;"></div>
+            <div class="teaching-layout">
+                <div class="teaching-text-side">
+                    <div id="viewText" class="view-text"></div>
+                    <div id="viewNote" class="view-note"></div>
+                </div>
+                <div class="teaching-img-side" id="viewImg"></div>
+            </div>
+            <button id="nextStepBtn" style="width:100%; padding:20px; background:#34a853; color:white; margin-top:20px; font-size:
