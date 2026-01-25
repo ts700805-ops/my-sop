@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SOP 雲端管理系統</title>
+    <title>SOP 雲端管理系統 (資料搬移中)</title>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <style>
         body { font-family: "Microsoft JhengHei", sans-serif; background: #f0f2f5; padding: 20px; margin: 0; }
@@ -32,6 +32,11 @@
         <div class="cloud-status">● 雲端：<span id="syncText">等待連線...</span></div>
         <h1 style="text-align:center; color:#1a73e8; margin-top:0;">SOP 雲端管理系統</h1>
         
+        <div id="migrationTool" style="display:none; background:#fff3cd; padding:15px; border-radius:10px; border:1px solid #ffeeba; margin-bottom:20px; text-align:center;">
+            <p style="color:#856404; margin:0 0 10px 0;"><b>系統升級提示：</b>偵測到舊資料，請點擊下方按鈕進行一鍵搬移。</p>
+            <button id="migrateBtn" style="background:#dc3545; color:white;">【一鍵搬移舊資料至新架構】</button>
+        </div>
+
         <div id="loginArea" style="text-align: center; padding: 40px 0;">
             <p style="font-size: 1.2em; font-weight: bold;">請輸入通關密碼</p>
             <input type="password" id="passInput" placeholder="請輸入密碼">
@@ -56,7 +61,7 @@
                 </div>
             </div>
             <ul id="stepList" style="list-style:none; padding:0;"></ul>
-            <button id="saveExitBtn" style="width:100%; padding:15px; background:#1a73e8; color:white; margin-top:15px;">✔ 儲存所有更動並返回</button>
+            <button id="saveExitBtn" style="width:100%; padding:15px; background:#1a73e8; color:white; margin-top:15px;">✔ 儲存此 SOP 並返回</button>
         </div>
 
         <div id="editModal" class="modal">
@@ -95,7 +100,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, getDoc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyALcGIGqqTDg47FjSg9cy1Ld19C7WgA29Y",
@@ -108,23 +113,27 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        const sopRef = doc(db, "data", "allSOPs");
+        const sopsCol = collection(db, "sops");
+        const oldSopRef = doc(db, "data", "allSOPs"); // 舊資料位置
 
         let allSOPs = {};
         let userRole = "";
         let currentSOPKey = "";
+        let currentSteps = [];
         let currentEditIdx = -1;
         let tempEditImg = "";
         let curIdx = 0;
 
-        // 監聽
-        onSnapshot(sopRef, (docSnap) => {
+        onSnapshot(sopsCol, (querySnapshot) => {
             document.getElementById('syncText').innerText = "連線正常";
-            allSOPs = docSnap.exists() ? (docSnap.data().content || {}) : {};
+            allSOPs = {};
+            querySnapshot.forEach((doc) => {
+                allSOPs[doc.id] = doc.data().steps || [];
+            });
             if (document.getElementById('mainMenu').style.display === 'block') renderSOPButtons();
         });
 
-        // 登入
+        // 登入邏輯 (保留)
         document.getElementById('loginBtn').onclick = function() {
             const p = document.getElementById('passInput').value;
             if (p === "000000") { userRole = "admin"; showMainMenu(); }
@@ -138,8 +147,33 @@
             document.getElementById('teachingMode').style.display = 'none';
             document.getElementById('mainMenu').style.display = 'block';
             document.getElementById('adminTools').style.display = (userRole === "admin" ? 'block' : 'none');
+            // 管理員登入才顯示搬移按鈕
+            if(userRole === "admin") document.getElementById('migrationTool').style.display = 'block';
             renderSOPButtons();
         }
+
+        // --- 搬移邏輯 ---
+        document.getElementById('migrateBtn').onclick = async function() {
+            this.disabled = true;
+            this.innerText = "搬移中，請勿關閉視窗...";
+            try {
+                const oldSnap = await getDoc(oldSopRef);
+                if (oldSnap.exists()) {
+                    const oldData = oldSnap.data().content || {};
+                    const keys = Object.keys(oldData);
+                    for (const key of keys) {
+                        await setDoc(doc(db, "sops", key), { steps: oldData[key] });
+                    }
+                    alert("搬移成功！共搬移 " + keys.length + " 份流程。");
+                    document.getElementById('migrationTool').style.display = 'none';
+                } else {
+                    alert("找不到舊資料。");
+                }
+            } catch (e) {
+                alert("搬移發生錯誤：" + e.message);
+                this.disabled = false;
+            }
+        };
 
         function renderSOPButtons() {
             const container = document.getElementById('sopButtons');
@@ -149,15 +183,22 @@
                 d.className = "sop-card";
                 d.innerHTML = `<strong>${t}</strong><br><br>
                     <button class="teach-btn" data-id="${t}" style="width:100%; background:#34a853; color:white;">▶ 開始學習</button>
-                    ${userRole==='admin'? `<button class="edit-sop-btn" data-id="${t}" style="margin-top:5px; width:100%; background:#fbbc05;">編輯</button>` : ''}`;
+                    ${userRole==='admin'? `
+                        <button class="edit-sop-btn" data-id="${t}" style="margin-top:5px; width:100%; background:#fbbc05;">編輯</button>
+                        <button class="del-sop-btn" data-id="${t}" style="margin-top:5px; width:100%; background:#ea4335; color:white; font-size:0.8em;">刪除此流程</button>
+                    ` : ''}`;
                 container.appendChild(d);
             });
 
             document.querySelectorAll('.teach-btn').forEach(b => b.onclick = () => startTeaching(b.dataset.id));
             document.querySelectorAll('.edit-sop-btn').forEach(b => b.onclick = () => editExistingSOP(b.dataset.id));
+            document.querySelectorAll('.del-sop-btn').forEach(b => b.onclick = async () => {
+                if(confirm(`確定要刪除「${b.dataset.id}」整個流程嗎？`)) {
+                    await deleteDoc(doc(db, "sops", b.dataset.id));
+                }
+            });
         }
 
-        // 修改處：壓縮功能
         async function processImage(file) {
             return new Promise(r => {
                 const reader = new FileReader();
@@ -179,11 +220,17 @@
 
         document.getElementById('createSopBtn').onclick = function() {
             const t = prompt("流程名稱？");
-            if (t && !allSOPs[t]) { allSOPs[t] = []; editExistingSOP(t); }
+            if (t) {
+                if (allSOPs[t]) return alert("名稱重複");
+                currentSOPKey = t;
+                currentSteps = [];
+                editExistingSOP(t);
+            }
         };
 
         function editExistingSOP(t) {
             currentSOPKey = t;
+            currentSteps = JSON.parse(JSON.stringify(allSOPs[t] || []));
             document.getElementById('mainMenu').style.display = 'none';
             document.getElementById('editArea').style.display = 'block';
             document.getElementById('currentEditingTitle').innerText = t;
@@ -197,7 +244,7 @@
             if (!txt) return alert("請輸入說明");
             this.innerText = "處理中..."; this.disabled = true;
             let img = file ? await processImage(file) : "";
-            allSOPs[currentSOPKey].push({ text: txt, note: note, img: img });
+            currentSteps.push({ text: txt, note: note, img: img });
             document.getElementById('stepInput').value = "";
             document.getElementById('noteInput').value = "";
             document.getElementById('imageInput').value = "";
@@ -208,7 +255,7 @@
         function renderEditSteps() {
             const l = document.getElementById('stepList');
             l.innerHTML = "";
-            allSOPs[currentSOPKey].forEach((s, i) => {
+            currentSteps.forEach((s, i) => {
                 const li = document.createElement('li');
                 li.className = "step-item";
                 li.innerHTML = `
@@ -220,12 +267,12 @@
                 l.appendChild(li);
             });
             document.querySelectorAll('.mod-btn').forEach(b => b.onclick = () => openEditModal(b.dataset.idx));
-            document.querySelectorAll('.del-btn').forEach(b => b.onclick = () => { if(confirm("刪除？")) { allSOPs[currentSOPKey].splice(b.dataset.idx,1); renderEditSteps(); }});
+            document.querySelectorAll('.del-btn').forEach(b => b.onclick = () => { if(confirm("刪除？")) { currentSteps.splice(b.dataset.idx,1); renderEditSteps(); }});
         }
 
         function openEditModal(idx) {
             currentEditIdx = parseInt(idx);
-            const s = allSOPs[currentSOPKey][currentEditIdx];
+            const s = currentSteps[currentEditIdx];
             document.getElementById('modalText').value = s.text;
             document.getElementById('modalNote').value = s.note || "";
             tempEditImg = s.img;
@@ -241,7 +288,7 @@
         };
 
         document.getElementById('modalConfirmBtn').onclick = function() {
-            allSOPs[currentSOPKey][currentEditIdx] = { 
+            currentSteps[currentEditIdx] = { 
                 text: document.getElementById('modalText').value, 
                 note: document.getElementById('modalNote').value, 
                 img: tempEditImg 
@@ -254,13 +301,14 @@
 
         document.getElementById('saveExitBtn').onclick = async function() {
             this.innerText = "儲存中..."; this.disabled = true;
-            await setDoc(sopRef, { content: allSOPs });
+            await setDoc(doc(db, "sops", currentSOPKey), { steps: currentSteps });
             showMainMenu();
-            this.innerText = "✔ 儲存所有更動並返回"; this.disabled = false;
+            this.innerText = "✔ 儲存此 SOP 並返回"; this.disabled = false;
         };
 
         function startTeaching(t) {
-            currentSOPKey = t; curIdx = 0;
+            currentSOPKey = t; currentSteps = allSOPs[t] || []; curIdx = 0;
+            if (currentSteps.length === 0) return alert("無步驟");
             document.getElementById('mainMenu').style.display = 'none';
             document.getElementById('teachingMode').style.display = 'block';
             document.getElementById('teachingTitle').innerText = t;
@@ -268,15 +316,15 @@
         }
 
         function updateView() {
-            const s = allSOPs[currentSOPKey][curIdx];
-            document.getElementById('progressText').innerText = `步驟 ${curIdx + 1} / ${allSOPs[currentSOPKey].length}`;
+            const s = currentSteps[curIdx];
+            document.getElementById('progressText').innerText = `步驟 ${curIdx + 1} / ${currentSteps.length}`;
             document.getElementById('viewText').innerText = s.text;
             document.getElementById('viewNote').innerText = s.note || "";
             document.getElementById('viewImg').innerHTML = s.img ? `<img src="${s.img}">` : "無圖片";
         }
 
         document.getElementById('nextStepBtn').onclick = function() {
-            if (curIdx < allSOPs[currentSOPKey].length - 1) { curIdx++; updateView(); }
+            if (curIdx < currentSteps.length - 1) { curIdx++; updateView(); }
             else { alert("完成！"); showMainMenu(); }
         };
 
@@ -293,7 +341,7 @@
                         img: li.querySelector('.s-img') ? li.querySelector('.s-img').src : "" 
                     });
                 });
-                allSOPs[currentSOPKey] = newList;
+                currentSteps = newList;
             }
         });
     </script>
