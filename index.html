@@ -45,7 +45,11 @@
         </div>
 
         <div id="editArea" style="display:none;">
-            <h2 id="currentEditingTitle" style="color:#1a73e8;"></h2>
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                <h2 id="currentEditingTitle" style="color:#1a73e8; margin:0;"></h2>
+                <input type="text" id="renameInput" placeholder="修改 SOP 名稱" style="font-size:0.8em; padding:5px;">
+                <button id="renameBtn" style="background:#6c757d; color:white; padding:5px 10px; font-size:0.8em;">更名</button>
+            </div>
             <div style="background:#f8f9fa; padding:15px; border-radius:10px; margin-bottom:15px; border:1px solid #eee;">
                 <input type="text" id="stepInput" placeholder="步驟說明" style="width:90%;">
                 <div style="display:flex; gap:10px; align-items:center; flex-wrap: wrap; margin-top:10px;">
@@ -96,7 +100,6 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // Firebase 配置
         const firebaseConfig = {
             apiKey: "AIzaSyALcGIGqqTDg47FjSg9cy1Ld19C7WgA29Y",
             authDomain: "sop-ta-liang.firebaseapp.com",
@@ -106,12 +109,10 @@
             appId: "1:776894564311:web:ee70e633865b5f946e2d92"
         };
 
-        // 初始化
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const sopsCol = collection(db, "sops");
 
-        // 全域變數
         window.allSOPs = {};
         window.userRole = "";
         window.currentSOPKey = "";
@@ -120,7 +121,6 @@
         window.tempEditImg = "";
         window.currentEditIdx = -1;
 
-        // 即時監聽
         onSnapshot(sopsCol, (snap) => {
             document.getElementById('syncText').innerText = "連線正常";
             window.allSOPs = {};
@@ -130,7 +130,6 @@
             document.getElementById('syncText').innerText = "連線失敗: " + err.message;
         });
 
-        // 登入功能
         document.getElementById('loginBtn').onclick = function() {
             const p = document.getElementById('passInput').value;
             if (p === "000000") { window.userRole = "admin"; showMainMenu(); }
@@ -168,7 +167,6 @@
             });
         }
 
-        // 圖片處理
         async function processImage(file) {
             return new Promise(r => {
                 const reader = new FileReader();
@@ -188,7 +186,6 @@
             });
         }
 
-        // SOP 管理
         document.getElementById('createSopBtn').onclick = function() {
             const t = prompt("流程名稱？");
             if (t && !window.allSOPs[t]) { window.currentSOPKey = t; window.currentSteps = []; editExistingSOP(t); }
@@ -201,8 +198,23 @@
             document.getElementById('mainMenu').style.display = 'none';
             document.getElementById('editArea').style.display = 'block';
             document.getElementById('currentEditingTitle').innerText = t;
+            document.getElementById('renameInput').value = t;
             renderEditSteps();
         }
+
+        document.getElementById('renameBtn').onclick = async function() {
+            const newName = document.getElementById('renameInput').value.trim();
+            if (!newName || newName === window.currentSOPKey) return;
+            if (window.allSOPs[newName]) return alert("名稱已存在");
+            
+            if (confirm(`確定要將「${window.currentSOPKey}」更名為「${newName}」嗎？`)) {
+                await deleteDoc(doc(db, "sops", window.currentSOPKey));
+                window.currentSOPKey = newName;
+                document.getElementById('currentEditingTitle').innerText = newName;
+                await setDoc(doc(db, "sops", window.currentSOPKey), { steps: window.currentSteps });
+                alert("更名成功，請繼續編輯或儲存");
+            }
+        };
 
         document.getElementById('addStepBtn').onclick = async function() {
             const txt = document.getElementById('stepInput').value.trim();
