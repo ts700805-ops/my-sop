@@ -34,3 +34,26 @@
         
         <div id="loginArea" style="text-align: center; padding: 40px 0;">
             <p style="font-size: 1.2em; font-weight: bold;">請輸入通關密碼</p>
+            <input type="password" id="passInput" placeholder="請輸入密碼">
+            <button id="loginBtn" style="background:#1a73e8; color:white;">登入系統</button>
+        </div>
+
+        <div id="mainMenu" style="display:none;">
+            <div id="adminTools" style="display:none; margin-bottom: 20px;">
+                <button id="createSopBtn" style="width:100%; background:#34a853; color:white;">＋ 建立全新 SOP 流程</button>
+            </div>
+            <div id="sopButtons" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap:15px;"></div>
+        </div>
+
+        <div id="editArea" style="display:none;">
+            <h2 id="currentEditingTitle" style="color:#1a73e8;"></h2>
+            <div style="background:#f8f9fa; padding:15px; border-radius:10px; margin-bottom:15px; border:1px solid #eee;">
+                <input type="text" id="stepInput" placeholder="步驟說明" style="width:90%;">
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap: wrap; margin-top:10px;">
+                    <input type="text" id="noteInput" placeholder="補充備註 (選填)" style="flex:2;">
+                    <input type="file" id="imageInput" accept="image/*" style="flex:1;">
+                    <button id="addStepBtn" style="background:#34a853; color:white;">新增步驟</button>
+                </div>
+            </div>
+            <ul id="stepList" style="list-style:none; padding:0;"></ul>
+            <button id="saveExitBtn" style="width:100%; padding:15px; background:#1a73e8; color:white; margin-top:15px;">✔ 儲存此 SOP 並返回</button>
