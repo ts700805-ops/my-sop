@@ -57,3 +57,15 @@
             </div>
             <ul id="stepList" style="list-style:none; padding:0;"></ul>
             <button id="saveExitBtn" style="width:100%; padding:15px; background:#1a73e8; color:white; margin-top:15px;">✔ 儲存此 SOP 並返回</button>
+        </div>
+
+        <div id="editModal" class="modal">
+            <div class="modal-content">
+                <h3>修改步驟內容</h3>
+                <input type="text" id="modalText" placeholder="步驟說明" style="width:95%;">
+                <input type="text" id="modalNote" placeholder="備註" style="width:95%; margin-top:10px;">
+                <div style="margin: 15px 5px;">
+                    <p>目前圖片預覽：</p>
+                    <div id="modalImgPreview" style="margin-bottom: 10px;"></div>
+                    <label style="background: #6c757d; color: white; padding: 8px 15px; border-radius: 5px; cursor: pointer; display: inline-block;">
+                        更換照片 <input
