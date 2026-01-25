@@ -28,20 +28,20 @@
 </head>
 <body>
     <div class="container">
-        <div class="cloud-status">● 狀態：<span id="syncText">系統準備就緒</span></div>
+        <div class="cloud-status">● 狀態：<span id="syncText">系統就緒</span></div>
         <h1 style="text-align:center; color:#1a73e8; margin-top:0;">SOP 雲端管理系統</h1>
         
         <div id="loginArea" style="text-align: center; padding: 40px 0;">
             <p style="font-size: 1.2em; font-weight: bold;">請輸入通關密碼</p>
             <input type="password" id="passInput" placeholder="請輸入密碼">
-            <button id="loginBtn" style="background:#1a73e8; color:white;">登入系統</button>
+            <button id="finalLoginBtn" style="background:#1a73e8; color:white;">登入系統</button>
         </div>
 
         <div id="mainMenu" style="display:none;">
             <div id="adminTools" style="display:none; margin-bottom: 20px;">
                 <button id="createSopBtn" style="width:100%; background:#34a853; color:white;">＋ 建立全新 SOP 流程</button>
             </div>
-            <input type="text" id="searchInput" class="search-box" placeholder="🔍 搜尋 SOP 標題...">
+            <input type="text" id="searchInput" class="search-box" placeholder="🔍 輸入關鍵字搜尋 SOP 標題...">
             <div id="sopButtons" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap:15px;"></div>
         </div>
 
@@ -67,14 +67,11 @@
             <h2 id="teachingTitle" style="text-align:center; color:#1a73e8;"></h2>
             <div id="progressText" style="text-align:center; font-weight:bold; margin-bottom:10px;"></div>
             <div class="teaching-layout">
-                <div class="teaching-text-side">
-                    <div id="viewText" class="view-text"></div>
-                    <div id="viewNote" class="view-note"></div>
-                </div>
+                <div class="teaching-text-side"><div id="viewText" class="view-text"></div><div id="viewNote" class="view-note"></div></div>
                 <div class="teaching-img-side" id="viewImg"></div>
             </div>
             <button id="nextStepBtn" style="width:100%; padding:20px; background:#34a853; color:white; margin-top:20px; font-size:1.5em;">下一步 ▶</button>
-            <button id="exitTeachBtn" style="width:100%; margin-top:10px; background:#6c757d; color:white;">返回</button>
+            <button id="exitTeachBtn" style="width:100%; margin-top:10px; background:#6c757d; color:white;">返回目錄</button>
         </div>
 
         <div id="editModal" class="modal">
@@ -91,6 +88,22 @@
             </div>
         </div>
     </div>
+
+    <script>
+        window.userRole = "";
+        document.getElementById('finalLoginBtn').onclick = function() {
+            const pass = document.getElementById('passInput').value;
+            if (pass === "000000") { window.userRole = "admin"; }
+            else if (pass === "1234") { window.userRole = "viewer"; }
+            else { alert("密碼錯誤"); return; }
+            
+            document.getElementById('loginArea').style.display = 'none';
+            document.getElementById('mainMenu').style.display = 'block';
+            document.getElementById('adminTools').style.display = (window.userRole === "admin" ? 'block' : 'none');
+            // 發送事件通知 Firebase 模組開始渲染
+            window.dispatchEvent(new Event('initApp'));
+        };
+    </script>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -109,50 +122,34 @@
         const db = getFirestore(app);
         const sopsCol = collection(db, "sops");
 
-        let allSOPData = {};
-        let userRole = "";
-        let currentSOPKey = "";
-        let currentSteps = [];
+        let allData = {};
+        let curKey = "";
+        let curSteps = [];
 
-        // --- 登入邏輯：直接在腳本內綁定，保證絕對可點擊 ---
-        document.getElementById('loginBtn').onclick = function() {
-            const pass = document.getElementById('passInput').value;
-            if (pass === "000000") { userRole = "admin"; openApp(); }
-            else if (pass === "1234") { userRole = "viewer"; openApp(); }
-            else alert("密碼錯誤");
-        };
-
-        function openApp() {
-            document.getElementById('loginArea').style.display = 'none';
-            document.getElementById('mainMenu').style.display = 'block';
-            document.getElementById('adminTools').style.display = (userRole === "admin" ? 'block' : 'none');
-            renderList();
-        }
-
-        // 雲端連線：靜默執行，不擋住登入
         onSnapshot(sopsCol, (snap) => {
-            allSOPData = {};
-            snap.forEach(d => { allSOPData[d.id] = d.data().steps || []; });
-            if (document.getElementById('mainMenu').style.display === 'block') renderList();
-            document.getElementById('syncText').innerText = "雲端同步中";
+            allData = {};
+            snap.forEach(d => allData[d.id] = d.data().steps || []);
+            if (document.getElementById('mainMenu').style.display === 'block') render();
+            document.getElementById('syncText').innerText = "雲端同步正常";
         });
 
-        document.getElementById('searchInput').oninput = (e) => renderList(e.target.value);
+        window.addEventListener('initApp', () => render());
+        document.getElementById('searchInput').oninput = (e) => render(e.target.value);
 
-        function renderList(filter = "") {
+        function render(filter = "") {
             const container = document.getElementById('sopButtons');
             container.innerHTML = "";
-            Object.keys(allSOPData).forEach(id => {
+            Object.keys(allData).sort().forEach(id => {
                 if (id.toLowerCase().includes(filter.toLowerCase())) {
                     const d = document.createElement('div');
                     d.className = "sop-card";
                     d.innerHTML = `<strong>${id}</strong><br><br>
                         <button class="t-btn" style="width:100%; background:#34a853; color:white;">▶ 開始</button>
-                        ${userRole==='admin' ? `<button class="e-btn" style="margin-top:5px; width:100%; background:#fbbc05;">編輯</button>
+                        ${window.userRole==='admin' ? `<button class="e-btn" style="margin-top:5px; width:100%; background:#fbbc05;">編輯</button>
                         <button class="d-btn" style="margin-top:5px; width:100%; background:#ea4335; color:white; font-size:0.8em;">刪除</button>` : ''}`;
-                    d.querySelector('.t-btn').onclick = () => startT(id);
-                    if(userRole==='admin') {
-                        d.querySelector('.e-btn').onclick = () => editSOP(id);
+                    d.querySelector('.t-btn').onclick = () => { curKey=id; curSteps=allData[id]; window.tIdx=0; showT(); };
+                    if(window.userRole==='admin') {
+                        d.querySelector('.e-btn').onclick = () => openEdit(id);
                         d.querySelector('.d-btn').onclick = async () => { if(confirm("刪除？")) await deleteDoc(doc(db, "sops", id)); };
                     }
                     container.appendChild(d);
@@ -160,54 +157,111 @@
             });
         }
 
-        // 圖片壓縮邏輯 (400px, 0.2品質)
         async function compress(file) {
             return new Promise(res => {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const img = new Image();
-                    img.src = e.target.result;
-                    img.onload = () => {
-                        const canvas = document.createElement('canvas');
-                        let w = img.width, h = img.height;
+                const r = new FileReader();
+                r.onload = (e) => {
+                    const i = new Image(); i.src = e.target.result;
+                    i.onload = () => {
+                        const c = document.createElement('canvas');
+                        let w = i.width, h = i.height;
                         if (w > 400) { h *= 400/w; w = 400; }
-                        canvas.width = w; canvas.height = h;
-                        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                        res(canvas.toDataURL('image/jpeg', 0.2));
+                        c.width = w; c.height = h;
+                        c.getContext('2d').drawImage(i, 0, 0, w, h);
+                        res(c.toDataURL('image/jpeg', 0.2));
                     };
                 };
-                reader.readAsDataURL(file);
+                r.readAsDataURL(file);
             });
         }
 
-        function editSOP(id) {
-            currentSOPKey = id;
-            currentSteps = [...(allSOPData[id] || [])];
+        function openEdit(id) {
+            curKey = id; curSteps = [...(allData[id] || [])];
             document.getElementById('mainMenu').style.display = 'none';
             document.getElementById('editArea').style.display = 'block';
             document.getElementById('currentEditingTitle').innerText = id;
             document.getElementById('renameInput').value = id;
-            refreshEdit();
+            refreshE();
         }
 
         document.getElementById('renameBtn').onclick = async () => {
             const n = document.getElementById('renameInput').value.trim();
-            if(n && n !== currentSOPKey) {
-                if(allSOPData[n]) return alert("名稱重複");
-                await deleteDoc(doc(db, "sops", currentSOPKey));
-                currentSOPKey = n;
-                document.getElementById('currentEditingTitle').innerText = n;
-                await setDoc(doc(db, "sops", n), { steps: currentSteps });
+            if(n && n !== curKey) {
+                if(allData[n]) return alert("名稱重複");
+                await deleteDoc(doc(db, "sops", curKey));
+                curKey = n; document.getElementById('currentEditingTitle').innerText = n;
+                await setDoc(doc(db, "sops", n), { steps: curSteps });
             }
         };
 
         document.getElementById('addStepBtn').onclick = async function() {
             const txt = document.getElementById('stepInput').value.trim();
-            if(!txt) return alert("請填寫");
+            if(!txt) return alert("請填寫內容");
             this.disabled = true;
             const file = document.getElementById('imageInput').files[0];
             const img = file ? await compress(file) : "";
-            currentSteps.push({ text: txt, note: document.getElementById('noteInput').value, img: img });
+            curSteps.push({ text: txt, note: document.getElementById('noteInput').value, img: img });
             document.getElementById('stepInput').value = ""; document.getElementById('imageInput').value = "";
-            this.disabled = false;
-            refreshEdit();
+            this.disabled = false; refreshE();
+        };
+
+        function refreshE() {
+            const l = document.getElementById('stepList'); l.innerHTML = "";
+            curSteps.forEach((s, i) => {
+                const li = document.createElement('li'); li.className = "step-item";
+                li.innerHTML = `<div class="drag-handle">☰</div><div style="flex:1;"><b>${s.text}</b></div>
+                    ${s.img ? `<img src="${s.img}" style="width:50px;">` : ''}
+                    <button class="m-btn" style="background:#fbbc05;">改</button>
+                    <button class="del-btn" style="background:#ea4335; color:white;">刪</button>`;
+                li.querySelector('.del-btn').onclick = () => { curSteps.splice(i,1); refreshE(); };
+                li.querySelector('.m-btn').onclick = () => {
+                    window.mIdx = i; document.getElementById('modalText').value = s.text;
+                    document.getElementById('modalNote').value = s.note || "";
+                    document.getElementById('editModal').style.display = 'block';
+                };
+                l.appendChild(li);
+            });
+        }
+
+        document.getElementById('modalConfirmBtn').onclick = () => {
+            curSteps[window.mIdx].text = document.getElementById('modalText').value;
+            curSteps[window.mIdx].note = document.getElementById('modalNote').value;
+            refreshE(); document.getElementById('editModal').style.display = 'none';
+        };
+
+        document.getElementById('saveExitBtn').onclick = async function() {
+            await setDoc(doc(db, "sops", curKey), { steps: curSteps });
+            document.getElementById('editArea').style.display = 'none';
+            document.getElementById('mainMenu').style.display = 'block';
+        };
+
+        function showT() {
+            document.getElementById('mainMenu').style.display = 'none';
+            document.getElementById('teachingMode').style.display = 'block';
+            document.getElementById('teachingTitle').innerText = curKey;
+            const s = curSteps[window.tIdx];
+            document.getElementById('progressText').innerText = `${window.tIdx+1} / ${curSteps.length}`;
+            document.getElementById('viewText').innerText = s.text;
+            document.getElementById('viewNote').innerText = s.note || "";
+            document.getElementById('viewImg').innerHTML = s.img ? `<img src="${s.img}">` : "無圖片";
+        }
+
+        document.getElementById('nextStepBtn').onclick = () => {
+            if(window.tIdx < curSteps.length-1) { window.tIdx++; showT(); }
+            else { alert("完成"); document.getElementById('teachingMode').style.display = 'none'; document.getElementById('mainMenu').style.display = 'block'; }
+        };
+
+        document.getElementById('exitTeachBtn').onclick = () => {
+            document.getElementById('teachingMode').style.display = 'none';
+            document.getElementById('mainMenu').style.display = 'block';
+        };
+
+        document.getElementById('createSopBtn').onclick = () => {
+            const n = prompt("新流程名稱？");
+            if(n && !allData[n]) { curKey = n; curSteps = []; openEdit(n); }
+        };
+
+        Sortable.create(document.getElementById('stepList'), { handle: '.drag-handle', animation: 150 });
+    </script>
+</body>
+</html>
