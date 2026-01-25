@@ -9,8 +9,8 @@
         body { font-family: "Microsoft JhengHei", sans-serif; background: #f0f2f5; padding: 20px; margin: 0; }
         .container { max-width: 1000px; margin: auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         .sop-card { background: #fff; border: 1px solid #ddd; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .step-item { background: #fff; border: 1px solid #eee; margin-bottom: 8px; padding: 12px; display: flex; align-items: center; border-left: 5px solid #1a73e8; border-radius: 6px; }
-        .drag-handle { cursor: grab; margin-right: 15px; color: #ccc; font-size: 1.2em; }
+        .step-item { background: #fff; border: 1px solid #eee; margin-bottom: 8px; padding: 12px; display: flex; align-items: center; border-left: 5px solid #1a73e8; border-radius: 6px; gap: 10px; }
+        .drag-handle { cursor: grab; color: #ccc; font-size: 1.2em; padding: 0 5px; }
         .teaching-layout { display: flex; flex-direction: column; gap: 15px; margin-top: 15px; }
         @media (min-width: 768px) { .teaching-layout { flex-direction: row; min-height: 400px; } }
         .teaching-text-side { flex: 1; background: #f8f9fa; border: 2px solid #1a73e8; border-radius: 10px; padding: 25px; display: flex; flex-direction: column; justify-content: center; }
@@ -18,16 +18,18 @@
         .teaching-img-side img { max-width: 100%; max-height: 100%; object-fit: contain; }
         .view-text { font-size: 1.8em; font-weight: bold; color: #1a73e8; margin-bottom: 15px; }
         .view-note { padding: 10px; background: #fff; border-left: 4px solid #fbbc05; color: #555; }
-        .cloud-status { text-align: right; font-size: 0.8em; color: #34a853; margin-bottom: 5px; }
-        input[type="text"], input[type="password"] { padding: 10px; border: 1px solid #ccc; border-radius: 6px; margin: 5px; }
+        input[type="text"], input[type="password"] { padding: 10px; border: 1px solid #ccc; border-radius: 6px; }
         button { cursor: pointer; transition: 0.2s; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; }
         button:hover { opacity: 0.8; }
         .search-box { width: 100%; box-sizing: border-box; padding: 12px; margin-bottom: 20px; border: 2px solid #1a73e8; border-radius: 8px; font-size: 1em; }
+        /* 彈窗樣式 */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); }
+        .modal-content { background: white; margin: 10% auto; padding: 25px; border-radius: 12px; width: 90%; max-width: 500px; }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="cloud-status">● 狀態：<span id="syncText">系統就緒</span></div>
+        <div style="text-align: right; font-size: 0.8em; color: #34a853; margin-bottom: 5px;">● 狀態：<span id="syncText">系統就緒</span></div>
         <h1 style="text-align:center; color:#1a73e8; margin-top:0;">SOP 雲端管理系統</h1>
         
         <div id="loginArea" style="text-align: center; padding: 40px 0;">
@@ -47,19 +49,19 @@
         <div id="editArea" style="display:none;">
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
                 <h2 id="currentEditingTitle" style="color:#1a73e8; margin:0;"></h2>
-                <input type="text" id="renameInput" placeholder="修改名稱">
+                <input type="text" id="renameInput" placeholder="修改名稱" style="flex:1;">
                 <button id="renameBtn" style="background:#6c757d; color:white;">更名</button>
             </div>
-            <div style="background:#f8f9fa; padding:15px; border-radius:10px; margin-bottom:15px;">
-                <input type="text" id="stepInput" placeholder="步驟說明" style="width:90%;">
-                <div style="display:flex; gap:10px; margin-top:10px; flex-wrap: wrap;">
+            <div style="background:#f8f9fa; padding:15px; border-radius:10px; margin-bottom:15px; border: 1px solid #ddd;">
+                <input type="text" id="stepInput" placeholder="步驟說明" style="width:97%; margin-bottom: 10px;">
+                <div style="display:flex; gap:10px; flex-wrap: wrap; align-items: center;">
                     <input type="text" id="noteInput" placeholder="補充備註" style="flex:2;">
                     <input type="file" id="imageInput" accept="image/*" style="flex:1;">
                     <button id="addStepBtn" style="background:#34a853; color:white;">新增步驟</button>
                 </div>
             </div>
             <ul id="stepList" style="list-style:none; padding:0;"></ul>
-            <button id="saveExitBtn" style="width:100%; padding:15px; background:#1a73e8; color:white;">✔ 儲存此 SOP 並返回主選單</button>
+            <button id="saveExitBtn" style="width:100%; padding:15px; background:#1a73e8; color:white; margin-top:15px;">✔ 儲存此 SOP 並返回主選單</button>
         </div>
 
         <div id="teachingMode" style="display:none;">
@@ -71,6 +73,23 @@
             </div>
             <button id="nextStepBtn" style="width:100%; padding:20px; background:#34a853; color:white; margin-top:20px; font-size:1.5em;">下一步 ▶</button>
             <button id="exitTeachBtn" style="width:100%; margin-top:10px; background:#6c757d; color:white;">返回目錄</button>
+        </div>
+
+        <div id="editModal" class="modal">
+            <div class="modal-content">
+                <h3>修改步驟內容</h3>
+                <p>步驟說明：</p>
+                <input type="text" id="modalText" style="width:95%;">
+                <p>補充備註：</p>
+                <input type="text" id="modalNote" style="width:95%;">
+                <p>更換圖片：</p>
+                <input type="file" id="modalFile" accept="image/*">
+                <div id="modalImgPreview" style="margin-top: 10px; text-align: center;"></div>
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button id="modalConfirmBtn" style="background: #34a853; color: white; flex: 1;">確定修改</button>
+                    <button id="modalCancelBtn" style="background: #eee; flex: 1;">取消</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -108,12 +127,12 @@
         let allData = {};
         let curKey = "";
         let curSteps = [];
+        let editingStepIndex = null;
 
-        // 監聽資料庫
         onSnapshot(sopsCol, (snap) => {
             allData = {};
             snap.forEach(d => allData[d.id] = d.data().steps || []);
-            renderList(); // 資料一有變動就重新繪製清單
+            if (document.getElementById('mainMenu').style.display === 'block') renderList();
             document.getElementById('syncText').innerText = "雲端同步中";
         });
 
@@ -124,7 +143,6 @@
             const container = document.getElementById('sopButtons');
             if (!container) return;
             container.innerHTML = "";
-            
             Object.keys(allData).sort().forEach(id => {
                 if (id.toLowerCase().includes(filter.toLowerCase())) {
                     const card = document.createElement('div');
@@ -140,15 +158,10 @@
                     if (window.userRole === 'admin') {
                         card.querySelector('.e-btn').onclick = () => openEdit(id);
                         card.querySelector('.d-btn').onclick = async () => {
-                            const pw = prompt("【安全確認】請輸入刪除密碼 (111111) 以執行刪除：");
+                            const pw = prompt("請輸入刪除密碼 (111111) 以確認刪除整份 SOP：");
                             if (pw === "111111") {
-                                if (confirm(`確定刪除「${id}」嗎？此動作無法復原。`)) {
-                                    await deleteDoc(doc(db, "sops", id));
-                                    alert("已成功刪除。");
-                                }
-                            } else if (pw !== null) {
-                                alert("密碼錯誤，拒絕刪除。");
-                            }
+                                if (confirm(`確定刪除「${id}」嗎？`)) await deleteDoc(doc(db, "sops", id));
+                            } else if (pw !== null) alert("密碼錯誤");
                         };
                     }
                     container.appendChild(card);
@@ -183,17 +196,6 @@
             refreshStepList();
         }
 
-        document.getElementById('renameBtn').onclick = async () => {
-            const n = document.getElementById('renameInput').value.trim();
-            if (n && n !== curKey) {
-                if (allData[n]) return alert("名稱重複");
-                await deleteDoc(doc(db, "sops", curKey));
-                curKey = n;
-                document.getElementById('currentEditingTitle').innerText = n;
-                await setDoc(doc(db, "sops", n), { steps: curSteps });
-            }
-        };
-
         document.getElementById('addStepBtn').onclick = async function() {
             const txt = document.getElementById('stepInput').value.trim();
             if (!txt) return alert("請輸入內容");
@@ -212,13 +214,56 @@
             curSteps.forEach((s, i) => {
                 const li = document.createElement('li');
                 li.className = "step-item";
-                li.innerHTML = `<div class="drag-handle">☰</div><div style="flex:1;"><b>${s.text}</b></div>
-                    ${s.img ? `<img src="${s.img}" style="width:50px;">` : ''}
-                    <button class="step-del-btn" style="background:#ea4335; color:white; margin-left:10px;">刪除</button>`;
-                li.querySelector('.step-del-btn').onclick = () => { curSteps.splice(i, 1); refreshStepList(); };
+                li.innerHTML = `
+                    <div class="drag-handle">☰</div>
+                    <div style="flex:1;"><b>${s.text}</b><br><small>${s.note || ""}</small></div>
+                    ${s.img ? `<img src="${s.img}" style="width:60px; height:45px; object-fit:cover; border-radius:4px;">` : ''}
+                    <button class="step-edit-btn" style="background:#fbbc05; color:black; padding:5px 10px;">編輯</button>
+                    <button class="step-del-btn" style="background:#ea4335; color:white; padding:5px 10px;">刪除</button>
+                `;
+                li.querySelector('.step-edit-btn').onclick = () => {
+                    editingStepIndex = i;
+                    document.getElementById('modalText').value = s.text;
+                    document.getElementById('modalNote').value = s.note || "";
+                    document.getElementById('modalImgPreview').innerHTML = s.img ? `<img src="${s.img}" style="max-width:100px;">` : "目前無圖片";
+                    document.getElementById('editModal').style.display = 'block';
+                };
+                li.querySelector('.step-del-btn').onclick = () => { if(confirm("確定刪除此步驟？")) { curSteps.splice(i, 1); refreshStepList(); } };
                 list.appendChild(li);
             });
         }
+
+        // 彈窗確認修改
+        document.getElementById('modalConfirmBtn').onclick = async function() {
+            this.innerText = "處理中...";
+            const newText = document.getElementById('modalText').value;
+            const newNote = document.getElementById('modalNote').value;
+            const file = document.getElementById('modalFile').files[0];
+            
+            curSteps[editingStepIndex].text = newText;
+            curSteps[editingStepIndex].note = newNote;
+            if (file) {
+                curSteps[editingStepIndex].img = await compress(file);
+            }
+            
+            this.innerText = "確定修改";
+            document.getElementById('modalFile').value = "";
+            document.getElementById('editModal').style.display = 'none';
+            refreshStepList();
+        };
+
+        document.getElementById('modalCancelBtn').onclick = () => { document.getElementById('editModal').style.display = 'none'; };
+
+        document.getElementById('renameBtn').onclick = async () => {
+            const n = document.getElementById('renameInput').value.trim();
+            if (n && n !== curKey) {
+                if (allData[n]) return alert("名稱重複");
+                await deleteDoc(doc(db, "sops", curKey));
+                curKey = n;
+                document.getElementById('currentEditingTitle').innerText = n;
+                await setDoc(doc(db, "sops", n), { steps: curSteps });
+            }
+        };
 
         document.getElementById('saveExitBtn').onclick = async function() {
             this.innerText = "儲存中...";
@@ -226,12 +271,12 @@
             document.getElementById('editArea').style.display = 'none';
             document.getElementById('mainMenu').style.display = 'block';
             this.innerText = "✔ 儲存此 SOP 並返回主選單";
-            renderList(); // 強制刷新主頁清單
+            renderList();
         };
 
         function startTeaching(id) {
             curKey = id; curSteps = allData[id]; window.tIdx = 0;
-            if (curSteps.length === 0) return alert("此流程尚無步驟");
+            if (curSteps.length === 0) return alert("尚無步驟");
             document.getElementById('mainMenu').style.display = 'none';
             document.getElementById('teachingMode').style.display = 'block';
             document.getElementById('teachingTitle').innerText = id;
@@ -240,7 +285,7 @@
 
         function updateTeachView() {
             const s = curSteps[window.tIdx];
-            document.getElementById('progressText').innerText = `進度：${window.tIdx + 1} / ${curSteps.length}`;
+            document.getElementById('progressText').innerText = `${window.tIdx + 1} / ${curSteps.length}`;
             document.getElementById('viewText').innerText = s.text;
             document.getElementById('viewNote').innerText = s.note || "";
             document.getElementById('viewImg').innerHTML = s.img ? `<img src="${s.img}">` : "無圖片";
@@ -248,21 +293,16 @@
 
         document.getElementById('nextStepBtn').onclick = () => {
             if (window.tIdx < curSteps.length - 1) { window.tIdx++; updateTeachView(); }
-            else { alert("流程完成！"); backToMain(); }
+            else { alert("流程結束"); backToMain(); }
         };
 
         document.getElementById('exitTeachBtn').onclick = () => backToMain();
-
-        function backToMain() {
-            document.getElementById('teachingMode').style.display = 'none';
-            document.getElementById('mainMenu').style.display = 'block';
-            renderList();
-        }
+        function backToMain() { document.getElementById('teachingMode').style.display = 'none'; document.getElementById('mainMenu').style.display = 'block'; renderList(); }
 
         document.getElementById('createSopBtn').onclick = () => {
             const n = prompt("請輸入新 SOP 名稱：");
             if (n && !allData[n]) { curKey = n; curSteps = []; openEdit(n); }
-            else if (allData[n]) alert("名稱已存在");
+            else if (allData[n]) alert("名稱重複");
         };
 
         Sortable.create(document.getElementById('stepList'), { handle: '.drag-handle', animation: 150 });
