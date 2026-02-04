@@ -26,7 +26,6 @@
         .modal-content { background: white; margin: 10% auto; padding: 25px; border-radius: 12px; width: 90%; max-width: 500px; }
         .nav-btns { display: flex; gap: 10px; margin-top: 20px; }
         .backup-tools { display: flex; gap: 10px; margin-bottom: 15px; background: #eef2f7; padding: 10px; border-radius: 8px; }
-        /* 新增分類選單樣式 */
         .category-filter { width: 100%; padding: 10px; margin-bottom: 20px; border-radius: 8px; border: 1px solid #1a73e8; background: #fff; font-size: 1em; color: #1a73e8; font-weight: bold; }
     </style>
 </head>
@@ -134,23 +133,24 @@
         let editingStepIndex = null;
         window.userRole = "";
 
+        // 核心修正：將檔名中的斜線替換為 Unicode 全形斜線，避開 Firebase 路徑限制
+        const fixId = (id) => id.replace(/\//g, '／');
+
         document.getElementById('finalLoginBtn').onclick = function() {
             const pass = document.getElementById('passInput').value;
             if (pass === "000000") { window.userRole = "admin"; }
             else if (pass === "1234") { window.userRole = "viewer"; }
             else { alert("密碼錯誤"); return; }
-            
             document.getElementById('loginArea').style.display = 'none';
             document.getElementById('mainMenu').style.display = 'block';
             document.getElementById('adminTools').style.display = (window.userRole === "admin" ? 'block' : 'none');
-            
             renderList();
         };
 
         onSnapshot(sopsCol, (snap) => {
             allData = {};
             snap.forEach(d => allData[d.id] = d.data().steps || []);
-            updateCategoryOptions(); // 更新資料夾選單
+            updateCategoryOptions();
             if (document.getElementById('mainMenu').style.display === 'block') {
                 renderList(document.getElementById('searchInput').value);
             }
@@ -158,21 +158,17 @@
         });
 
         document.getElementById('searchInput').oninput = (e) => renderList(e.target.value);
-        
-        // 新增：當分類選單改變時重新繪製列表
         document.getElementById('categoryFilter').onchange = () => renderList(document.getElementById('searchInput').value);
 
-        // 新增：自動提取所有路徑中的「資料夾」名稱並更新下拉選單
         function updateCategoryOptions() {
             const filter = document.getElementById('categoryFilter');
             const currentVal = filter.value;
             const categories = new Set();
             Object.keys(allData).forEach(id => {
-                if (id.includes('/')) {
-                    categories.add(id.split('/')[0]);
+                if (id.includes('／')) {
+                    categories.add(id.split('／')[0]);
                 }
             });
-            
             filter.innerHTML = '<option value="ALL">📂 全部資料夾</option><option value="UNCLASSIFIED">📁 未分類</option>';
             Array.from(categories).sort().forEach(cat => {
                 const opt = document.createElement('option');
@@ -189,17 +185,10 @@
             const selectedCat = document.getElementById('categoryFilter').value;
             if (!container) return;
             container.innerHTML = "";
-
             Object.keys(allData).sort().forEach(id => {
-                // 邏輯：先拆分路徑
-                const parts = id.split('/');
+                const parts = id.split('／');
                 const category = parts.length > 1 ? parts[0] : "UNCLASSIFIED";
-                const displayName = parts.length > 1 ? parts.slice(1).join('/') : id;
-
-                // 過濾條件 1：搜尋關鍵字
                 const matchSearch = id.toLowerCase().includes(searchFilter.toLowerCase());
-                
-                // 過濾條件 2：分類選擇
                 let matchCat = false;
                 if (selectedCat === "ALL") matchCat = true;
                 else if (selectedCat === "UNCLASSIFIED" && parts.length === 1) matchCat = true;
@@ -229,7 +218,6 @@
             });
         }
 
-        // 以下所有編輯、學習、壓縮、匯出邏輯均未更動
         async function compress(file) {
             return new Promise(res => {
                 const r = new FileReader();
@@ -253,13 +241,15 @@
             document.getElementById('mainMenu').style.display = 'none';
             document.getElementById('editArea').style.display = 'block';
             document.getElementById('currentEditingTitle').innerText = id;
-            document.getElementById('renameInput').value = id;
+            document.getElementById('renameInput').value = id.replace(/／/g, '/'); // 編輯時顯示回一般的斜線
             refreshStepList();
         }
 
         document.getElementById('renameBtn').onclick = async function() {
-            const newName = document.getElementById('renameInput').value.trim();
-            if (!newName || newName === curKey) return;
+            let newName = document.getElementById('renameInput').value.trim();
+            if (!newName) return;
+            newName = fixId(newName); // 自動轉換斜線
+            if (newName === curKey) return;
             if (allData[newName]) { alert("名稱重複了"); return; }
             this.innerText = "更名中...";
             try {
@@ -267,7 +257,7 @@
                 await deleteDoc(doc(db, "sops", curKey));
                 curKey = newName;
                 document.getElementById('currentEditingTitle').innerText = newName;
-                alert("更名成功！可以用「分類/名稱」來分類。");
+                alert("更名成功！");
             } catch (e) { alert("更名失敗：" + e.message); }
             this.innerText = "更名";
         };
@@ -381,12 +371,15 @@
         function backToMain() { document.getElementById('teachingMode').style.display = 'none'; document.getElementById('mainMenu').style.display = 'block'; renderList(); }
 
         document.getElementById('createSopBtn').onclick = async () => {
-            const n = prompt("請輸入新 SOP 名稱（例如：行政/流程A）：");
-            if (n && !allData[n]) {
-                curKey = n; curSteps = []; 
-                await setDoc(doc(db, "sops", n), { steps: [] });
-                openEdit(n);
-            } else if (allData[n]) alert("名稱重複");
+            let n = prompt("請輸入新 SOP 名稱（例如：行政/流程A）：");
+            if (n) {
+                n = fixId(n); // 自動處理分類符號
+                if (!allData[n]) {
+                    curKey = n; curSteps = []; 
+                    await setDoc(doc(db, "sops", n), { steps: [] });
+                    openEdit(n);
+                } else alert("名稱重複");
+            }
         };
 
         Sortable.create(document.getElementById('stepList'), { 
